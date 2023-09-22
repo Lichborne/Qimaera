@@ -1,0 +1,2 @@
+* write default applyUnitary implementation after the Idris2 developers fix the "rewrite linearity" bug
+  - see: https://github.com/idris-lang/Idris2/issues/1861
