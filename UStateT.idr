@@ -38,7 +38,9 @@ modify f = MkUST $ \i => pure1 (f i # ())
 
 
 {-
-
+get : UStateT s m s
+get = MkUST $ (\s => do
+      pure s)}
    ||| Apply the Hadamard gate 
   applyH : {n : Nat} -> Unitary i -> Unitary n -> {auto prf: LT i n} -> {auto valid: LTE 2 n} 
               -> UStateT (Vect i (Fin n)) (Vect n (Fin )) (Unitary n)
