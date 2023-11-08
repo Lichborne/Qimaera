@@ -9,8 +9,8 @@ import Injection
 import Matrix
 import Complex
 import Lemmas
-import Unitary
-import UState
+import UnitaryLinear
+import UStateT
 --import QStateT
 import Control.Linear.LIO
 import LinearTypes
@@ -125,67 +125,85 @@ applyURepeatX (i) (n) (S k) = do
                       True =>  pure (MkPair True (vectMaybeToNat leVectorUwU))
                       False => applyURepeatX i n k
 
-applyUSep : {i:Nat} -> {n:Nat} -> Unitary i -> (v : Vect i Nat) -> Unitary n -> IO (Unitary n)
+applyUSep : {i:Nat} -> {n:Nat} -> Unitary i -> (v : Vect i Nat) -> (1 _ : Unitary n) -> UStateT (Unitary n) (Unitary n) (Unitary n) 
 applyUSep {i} {n} ui v un = case (maybeIsInjective n v) of
-                              (Just a) => (do
-                                putStrLn ("Inputs are of the correct form, proceeding")
-                                Prelude.pure (Unitary.apply {i = i} {n = n} ui un v {prf = a}))
-                              Nothing => do
-                                putStrLn ("Unfortunately, the vector of wires provided cannot be used, because it is not of the right length, or contains indeces which do not belong to an existing wire. Please try again.")
-                                pairpair <- applyURepeatX i n 3
-                                case decEq ((snd pairpair).fst) i of
-                                  Yes prf1 => pure $ (Unitary.apply {i = i} {n = n} ui un (rewrite (sym prf1) in Builtin.DPair.DPair.snd (snd (pairpair))) {prf = ?whatnow})
-                                  No prf2 => pure un
+                                      (Just a)=> (do
+                                        pure (UnitaryLinear.apply {i = i} {n = n} ui un v {prf = a}))
+                                      Nothing => do
+                                        pure un 
 
-applyU : {i:Nat} -> {n:Nat} -> Unitary i -> (v : Vect i Nat) -> UState (Unitary n) (Unitary n) (Unitary n)
-applyU {i} {n} ui v = case (maybeIsInjective n v) of
-                        (Just a) => (do
-                          un <- MkUS (\u => pure (MkPair u u))
-                          a <- pure (Unitary.apply {i = i} {n = n} ui un v {prf = a})
-                          pure a)
-                        Nothing => MkUS (\u => pure (MkPair u u))
-
-applyUF : {i:Nat} -> {n:Nat} -> Unitary i -> (v : Vect i Nat) -> UState (Unitary n) (Unitary n) (Unitary n)
-applyUF {i} {n} ui v = case (maybeIsInjective n v) of
+applyUState : {i:Nat} -> {n:Nat} -> Unitary i -> (v : Vect i Nat) -> (1 _ : UStateT (Unitary n) (Unitary n) (Unitary n)) -> UStateT (Unitary n) (Unitary n) (Unitary n)
+applyUState {i} {n} ui v uST = case (maybeIsInjective n v) of
                       (Just a)=> (do
-                        un <- MkUS (\u => pure (MkPair u u))
-                        pure (Unitary.apply {i = i} {n = n} ui un v {prf = a}))
-                      Nothing => MkUS (\u => do
-                        putStrLn "Vector input incorrect, state of computation unchanged"
-                        pure (MkPair u u))
+                        un <- uST
+                        pure (UnitaryLinear.apply {i = i} {n = n} ui un v {prf = a}))
+                      Nothing => do
+                        --putStrLn "Vector input incorrect, state of computation unchanged"
+                        un <- uST
+                        pure un
 
+applyUAlt : {i:Nat} -> {n:Nat} -> Unitary i -> (v : Vect i Nat) -> UStateT (Unitary n) (Unitary n) (Unitary n) 
+applyUAlt {i} {n} ui v = case (maybeIsInjective n v) of
+                                      (Just a)=> (do
+                                        un <- MkUST (\u => pure1 (IdGate # u))
+                                        pure (UnitaryLinear.apply {i = i} {n = n} ui un v {prf = a}))
+                                      Nothing => do
+                                        un <- MkUST (\u => pure1 (IdGate # u)) 
+                                        pure un
+   
 
-                            --putStrLn ("Inputs are of the correct form, proceeding")    
-                            
-
-{-export
-applyU : {i:Nat} -> {n:Nat} -> Unitary i -> (v : Vect i Nat) -> UState (Unitary n) (Unitary n) (Unitary n)
-applyU {i} {n} ui v = case (sortOutTest n v) of
-                        True => (do
-                          putStrLn ("Inputs are of the correct form, proceeding")
-                          do
-                            un <- get
-                            Prelude.pure (Unitary.apply {i = i} {n = n} ui un v {prf = ?what2}))
-                        False => do
-                          putStrLn ("Unfortunately, the vector of wires provided cannot be used, because it is not of the right length, or contains indeces which do not belong to an existing wire. Please try again.")
-                          pairpair <- applyURepeatX i n 3
-                          case decEq ((snd pairpair).fst) i of
-                            Yes prf1 => do
-                              un <- runState
-                              pure $ (Unitary.apply {i = i} {n = n} ui un (rewrite (sym prf1) in Builtin.DPair.DPair.snd (snd (pairpair))) {prf = ?whatnow2})
-                            No prf2 => do
-                              un <- get
-                              pure un
                                         
-{-                                       
-apply : {i : Nat} -> {n : Nat} -> 
-    (1 _ : Unitary i) -> (1 _ : Unitary n) -> 
-    (v : Vect i Nat) -> 
-    {auto prf : (IsInjectiveT n v)} -> 
-    Unitary n
+applyTest1 : UStateT (Unitary 2) (Unitary 2) (Unitary 2)
+applyTest1 = do
+  u <- (UStateT.pure $ tensor (PGate 1) (PGate 1))
+  (applyUSep HGate (0::[]) u)
 
-export
-buildH : UStateT (Unitary 1) (Unitary 1) (Unitary 1) 
+runit1 = runUStateT IdGate applyTest1
+
+applyTest2 : UStateT (Unitary 2) (Unitary 2) (Unitary 2)
+applyTest2 = do
+  (applyUState HGate (0::[]) (UStateT.pure $ tensor (PGate 1) (PGate 1)))
+
+runit2 = runUStateT IdGate applyTest2
+                  
+applyTest3 : UStateT (Unitary 2) (Unitary 2) (Unitary 2)
+applyTest3 = do
+  (applyUAlt HGate (0::[]))
+
+runit3 = runUStateT (tensor (PGate 1) (PGate 1)) applyTest2
+                            
+public export total
+amplification : (n : Nat) -> Unitary n
+amplification 0 = IdGate
+amplification 1 = IdGate
+amplification (S k) = 
+  let x = tensorn (S k) (X 0 IdGate)
+      h1 = H k x
+      c = multipleQubitControlledNOT (S k) . h1
+      h2 = H k c
+  in x . h2 
+
+amplificationS : (n : Nat) -> UStateT (Unitary n) (Unitary n) (Unitary n)
+amplificationS 0 = pure IdGate
+amplificationS 1 = pure IdGate
+amplificationS (S k) = 
+  let x = tensorn (S k) (X 0 IdGate)
+      h1 = H k x
+      c = multipleQubitControlledNOT (S k) . h1
+      h2 = H k c
+  in pure (x . h2) 
+
+amplificationM : (n : Nat) -> UStateT (Unitary n) (Unitary n) (Unitary n)
+amplificationM 0 = pure IdGate
+amplificationM 1 = pure IdGate
+amplificationM (S k) = do
+  x <- pure (tensorn (S k) (X 0 IdGate))
+  h1 <- pure $ H k x
+  c <- pure $ multipleQubitControlledNOT (S k) . h1
+  h2 <- pure $  H k c
+  pure (tensorn (S k) (X 0 IdGate) . h2) 
+
+buildH : UStateT (Unitary 1) (Unitary 1) (Unitary 1)
 buildH = do 
   UStateT.pure HGate
 
@@ -199,29 +217,14 @@ buildID : UStateT (Unitary n) (Unitary n) (Unitary n)
 buildID = do 
   UStateT.pure IdGate
 
-export
-tensorU : {n : Nat} -> {p : Nat} -> Unitary p -> UStateT (Unitary n) (Unitary n) (Unitary (n+p))
-tensorU up = MkUST $ (\un => runUStateT un (UStateT.pure (tensor un up)))
-
-export
-tensorUF : {n : Nat} -> {p : Nat} -> Unitary p -> UStateT (Unitary n) (Unitary n) (Unitary (n+p))
-tensorUF up = MkUST $ (\un => runUStateT un (UStateT.pure (tensor un up)))
-
 private
-tensorSepU : {n : Nat} -> {p : Nat} -> (1 _ : Unitary n) -> Unitary p -> UStateT (Unitary n) (Unitary n) (Unitary (n+p))
+tensorSepU : {n : Nat} -> {p : Nat} -> (1 _ : Unitary n) -> (1 _ : Unitary p) -> UStateT (Unitary n) (Unitary n) (Unitary (n+p))
 tensorSepU un up = (UStateT.pure (tensor un up))
 
-export 
-composeU : {n : Nat} -> Unitary n -> UStateT (Unitary n) (Unitary n) (Unitary n)
-composeU fst = MkUST $ (\un => runUStateT un (UStateT.pure (compose fst un)))
+composeSepU : {n : Nat} -> {p : Nat} -> (1 _ : Unitary n) ->(1 _ : Unitary n ) -> UStateT (Unitary n) (Unitary n) (Unitary n)
+composeSepU un up = (UStateT.pure (compose un up))
 
-myFunc : UStateT (Unitary 1) (Unitary 1) (Unitary 2)
-myFunc = do 
-  h <- buildH
-  t <- tensorSepU h (PGate 1)
-  UStateT.pure t --?what
-  
--}
+
 {-}
   ||| Apply a Unitary to another smaller one
   applyU : {n : Nat} -> {i : Nat} -> Unitary i -> {auto prf: LT i n} -> {auto valid: LTE 2 n} 
@@ -230,7 +233,11 @@ myFunc = do
     [q1] <- apply {n = n} {i = rewrite (sym $ comeOnIdrisGen {n=n} {m=i} {prf = lteSuccLeft prf}) in (justFinLemma i (minus n i) {prf = rewrite lteSuccLeft in valid})}
               ui un wires  {valid = valid}
     pure q1 
-  
+  export
+tensorU : {n : Nat} -> {p : Nat} -> Unitary p -> UStateT (Unitary n) (Unitary n) (Unitary (n+p))
+tensorU up = do
+  un <- MkUST (\u => pure1 (IdGate # u))
+  (UStateT.pure (tensor un up))
 
                           
   ||| Execute a quantum operation : start and finish with trivial quantum state

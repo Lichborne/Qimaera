@@ -100,6 +100,19 @@ interface QuantumOp (0 t : Nat -> Type) where
   run : QStateT (t 0) (t 0) (Vect n Bool) -> IO (Vect n Bool)
 
 
+||| This is how we may think of the unitary that does Hadamard^{\otimes n}.
+||| n      - the arity of the unitary operation
+||| n + m  - the size of the quantum state on which this is getting applied
+||| qs     - the qubits on which we are going to apply the unitary map
+||| output - quantum state transformer from a quantum state of size (n+m) to a quantum state of size (n+m) that gives a
+|||          list of n qubits (the resulting qubits on which the unitary was applied) that the user has access to
+{-mapH : QuantumOp t => (n : Nat) -> (m : Nat) -> (1 qs : LVect n Qubit) -> QStateT (t (n+m)) (t (n+m)) (LVect n Qubit)
+mapH 0 m [] = pure []
+mapH (S n) m (q :: qs) = do
+  hq <- applyH q 
+  hqs <- mapH {t = t} n (S m) qs
+  pure (hq :: hqs)
+-}
 
 
 
@@ -148,6 +161,18 @@ newQubitsPointers 0 _ = ([] # [])
 newQubitsPointers (S p) counter = 
   let (q # v) = newQubitsPointers p (S counter)
   in (MkQubit counter :: q) #  (MkQubit counter :: v)
+{-}
+applyUnitary'' : {n : Nat} -> {i : Nat} ->
+  (1 _ : LVect i Qubit) -> Unitary i -> (1 _ : SimulatedOp n) -> R (LPair (SimulatedOp n) (LVect i Qubit))
+  applyUnitary'' v u us = 
+    let (us1 # v') # ind = listIndices us v 
+      us2 = applyCirc ind u us1
+    in pure1 (us2 # v') where
+      applyCirc : Vect i Nat -> Unitary i -> (1 _ : SimulatedOp n) -> SimulatedOp n
+      applyCirc v IdGate ust = ust
+      applyCirc v gate (MkSimulatedOp vs un counter) = 
+      --let MkUnitaryUse vs un counter = applyCirc v g st in
+      MkSimulatedOp vs (apply gate un v {prf = believe_me ()}) counter -}
 
 ||| Auxiliary function for applying a circuit to some qubits
 private
@@ -160,18 +185,18 @@ applyUnitary' v u q =
     applyCirc : Vect i Nat -> Unitary i -> (1 _ : SimulatedOp n) -> SimulatedOp n
     applyCirc v IdGate qst = qst
     applyCirc v (H j g) st = 
-      let k = index j v 
+      let k = indexLT j v 
           h = simpleTensor matrixH n k
           MkSimulatedOp qst q counter = applyCirc v g st
       in MkSimulatedOp (h `matrixMult` qst) q counter
     applyCirc v (P p j g) st = 
-      let k = index j v
+      let k = indexLT j v
           ph = simpleTensor (matrixP p) n k
           MkSimulatedOp qst q counter = applyCirc v g st
       in MkSimulatedOp (ph `matrixMult` qst) q counter
     applyCirc v (CNOT c t g) st = 
-      let kc = index c v
-          kt = index t v
+      let kc = indexLT c v
+          kt = indexLT t v
           cn =  tensorCNOT n kc kt
           MkSimulatedOp qst q counter = applyCirc v g st
       in MkSimulatedOp (cn `matrixMult` qst) q counter
@@ -214,7 +239,7 @@ measureQubits' (x :: xs) qs = do
        (b' :: bs') => pure1 (s1 # (b :: b' :: bs'))
 
 ------- SIMULATE CIRCUITS : OPERATIONS ON QUANTUM STATES ------
-
+  
 
 ||| Add new qubits to a Quantum State
 export
@@ -254,85 +279,10 @@ QuantumOp SimulatedOp where
   measure      = measureSimulated
   run          = runSimulated
 
-
-
-  export
-data Qubit : Type where
-  MkQubit : (n : Nat) -> Qubit
-
-||| The QuantumOp interface is used to abstract over the representation of a
-||| quantum state. It is parameterised by the number of qubits it contains.
 export
-interface QuantumOp (0 t : Nat -> Type) where
+QuantumOp Unitary where
+  newQubits    = newQubits
+  applyUnitary = apply
+  measure      = measure
+  run          = run
 
-  ||| Prepare 'p' new qubits in state |00...0>
-  newQubits : (p : Nat) -> QStateT (t n) (t (n+p)) (LVect p Qubit)
-  newQubits Z     = rewrite plusZeroRightNeutral n in pure []
-  newQubits (S k) = rewrite lemmaPlusSRight n k in do
-    q <- newQubit
-    qs <- newQubits k
-    pure (q :: qs)
-
-  ||| Prepare a single new qubit in state |0>
-  newQubit : QStateT (t n) (t (S n)) Qubit
-  newQubit = rewrite sym $ lemmaplusOneRight n in do
-    [q] <- newQubits 1
-    pure q
-
-  ||| Apply a unitary circuit to the qubits specified by the LVect argument
-  applyUnitary : {n : Nat} -> {i : Nat} ->
-                 (1 _ : LVect i Qubit) -> Unitary i -> QStateT (t n) (t n) (LVect i Qubit)
-
-  ||| Apply the Hadamard gate to a single qubit
-  applyH : {n : Nat} -> (1 _ : Qubit) -> QStateT (t n) (t n) Qubit
-  applyH q = do
-    [q1] <- applyUnitary {n} {i = 1} [q] HGate 
-    pure q1
-
-  ||| Apply a P gate to a single qubit
-  applyP : {n : Nat} -> Double -> (1 _ : Qubit) -> QStateT (t n) (t n) Qubit
-  applyP p q = do
-    [q1] <- applyUnitary {n} {i = 1} [q] (PGate p)
-    pure q1
-
-  ||| Apply the CNOT gate to a pair of qubits
-  applyCNOT : {n : Nat} -> (1 _ : Qubit) -> (1 _ : Qubit) -> QStateT (t n) (t n) (LPair Qubit Qubit)
-  applyCNOT q1 q2 = do
-    [q1,q2] <- applyUnitary {n} {i = 2} [q1,q2] CNOTGate
-    pure (q1 # q2)
-
-  ||| Measure some qubits in a quantum state
-  public export
-  measure : {n : Nat} -> {i : Nat} -> (1 _ : LVect i Qubit) -> QStateT (t (i + n)) (t n) (Vect i Bool)
-  measure [] = pure []
-  measure (q :: qs) = do
-    b <- measureQubit q
-    bs <- measure qs
-    pure (b `consLin` bs)
-
-  ||| Measure only one qubit
-  measureQubit : {n : Nat} -> (1 _ : Qubit) -> QStateT (t (S n)) (t n) Bool
-  measureQubit q = do
-    [b] <- measure [q]
-    pure b
-
-  ||| Same as measure, but with an initial state of n + i instead of i + n qubits to help with theorem proving in some cases
-  -- public export
-  -- measure2 : {n : Nat} -> {i : Nat} -> (LVect i Qubit) -> QStateT (t (n + i)) (t n) (Vect i Bool)
-  -- measure2 v = rewrite plusCommutative n i in measure v
-
-  ||| Measure all qubits in a quantum state
-  ||| Because of a bug in Idris2, we use the implementation below.
-  ||| However, the implementation commented out is preferable if the bug gets fixed.
-  public export
-  measureAll : {n : Nat} -> (1 _ : LVect n Qubit) -> QStateT (t n) (t 0) (Vect n Bool)
-  measureAll []        = pure []
-  measureAll (q :: qs) = do
-    b <- measureQubit q
-    bs <- measureAll qs
-    pure (b `consLin` bs)
-  --measureAll qs = rewrite sym $ plusZeroRightNeutral n in measure qs
-                          
-  ||| Execute a quantum operation : start and finish with trivial quantum state
-  ||| (0 qubits) and measure 'n' qubits in the process
-  run : QStateT (t 0) (t 0) (Vect n Bool) -> IO (Vect n Bool)

@@ -53,6 +53,7 @@ apply {i} {n} (CNOT c t {prf1} {prf2} {prf3} g1) g2 v =
       prf6 = differentIndexInjectiveVect c t n {prf1 = prf3} v {prf2 = prf} {prf3 = prf1} {prf4 = prf2}
   in CNOT (indexLT c v) (indexLT t v) {prf1 = prf4} {prf2 = prf5} {prf3 = prf6} (apply g1 g2 v)
 
+
 ---------------------------COMPOSE-----------------------------
 |||Compose 2 circuits of the same size
 public export
@@ -437,6 +438,15 @@ exportToQiskit str g =
              Right io1 => pure ()
 
 
-
+public export total
+amplification : (n : Nat) -> Unitary n
+amplification 0 = IdGate
+amplification 1 = IdGate
+amplification (S k) = 
+  let x = tensorn (S k) (X 0 IdGate)
+      h1 = H k x
+      c = multipleQubitControlledNOT (S k) . h1
+      h2 = H k c
+  in x . h2 
 
 

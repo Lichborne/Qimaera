@@ -27,6 +27,9 @@ public export
 pureF : (a) -> (f: b->t) -> UState b t a 
 pureF x f = MkUS (\st => pure (MkPair (f st) x))
 
+public export
+get: UState a a a
+get = MkUS (\u => pure (MkPair u u))
 
 public export
 (>>=) : (UState i m a) -> ((a -> UState m o b)) -> UState i o b
@@ -63,6 +66,7 @@ implementation Functor f => Applicative (UState (Unitary n) (Unitary n)) where
       func <- fg
       un <- st
       pure $ func un
+
 
   {-}
 Functor (\a => (R (Pair a a))) where

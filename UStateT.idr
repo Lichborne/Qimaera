@@ -2,6 +2,7 @@ module UStateT
 import Control.Monad.State
 import LinearTypes
 import Control.Linear.LIO
+import UnitaryLinear
 
 public export
 R : Type -> Type
@@ -32,9 +33,25 @@ v >>= f = MkUST $ \i => do
                          runUStateT a (f m)
 
 
+    
 public export
 modify : ((1 _ : i) -> o) -> UStateT i o ()
 modify f = MkUST $ \i => pure1 (f i # ())
+
+
+{-}
+implementation Functor (UStateT (Unitary n) (Unitary n)) where
+  map func fa = do
+    a <- fa
+    UStateT.pure (func $ (fromLinear a))
+
+implementation Functor f => Applicative (UStateT (Unitary n) (Unitary n)) where
+  pure a =  UStateT.pure a
+  (<*>) fg st = do 
+      func <- fg
+      un <- st
+      UStateT.pure $ func un
+
 
 
 {-

@@ -5,6 +5,7 @@ import Data.Vect
 import Decidable.Equality
 import Injection
 import Complex
+import NatRules
 
 %default total
 
@@ -58,6 +59,11 @@ export
 lteRefl : (n:Nat) -> LTE n n
 lteRefl Z   = LTEZero
 lteRefl (S k) = LTESucc (lteRefl k)
+
+export
+%hint
+lteReflHint : {n:Nat} -> LTE n n
+lteReflHint {n} = lteRefl n 
 
 export
 lemmaLTERefl : (n : Nat) -> LTE n n
@@ -217,6 +223,7 @@ ltzss (S k) = lteSuccRight $ ltzss k
 lt1ss: (k:Nat) -> LT 1 (S (S k))
 lt1ss Z = lteRefl 2
 lt1ss (S k) = lteSuccRight $ lt1ss k
+
 --------------------------------------------------------------------
 
 export
@@ -267,7 +274,58 @@ lemmaControlledInj2 (S k) (S j) (S i) = IsInjectiveSucc
       (AllDiffSucc (IsDiffNil) (AllDiffNil))))
   (ASSucc (ltzss k) (ASSucc (LTESucc prf1) (ASSucc (LTESucc prf2) (ASNil))))
 
+export 
+%hint
+lemmaIsDiffGen : (m:Nat) -> (v: Vect n Nat) -> IsDifferentT m v
+lemmaIsDiffGen m [] = IsDiffNil
+lemmaIsDiffGen m (x::xs) = case isLT m x of
+   Yes prfLeft => IsDiffSucc (Left prfLeft) (lemmaIsDiffGen m xs)
+   No prfNo1 => case isLT x m of
+    Yes prfRight =>  IsDiffSucc (Right prfRight) (lemmaIsDiffGen m xs)
+    No prfNo2 => assert_total $ idris_crash "There exists no automatic proof that the Vector is Injective"
 
+export 
+%hint    
+lemmaAllDiffGen : {v: Vect n Nat} -> AllDifferentT v
+lemmaAllDiffGen {v = []} = AllDiffNil
+lemmaAllDiffGen {v = (x::xs)} = AllDiffSucc (lemmaIsDiffGen x xs) (lemmaAllDiffGen {v = xs})
+
+export 
+%hint 
+lemmaAllSmallGen : (m:Nat) -> (v: Vect n Nat) -> AllSmallerT v m
+lemmaAllSmallGen {m} {v = []} = ASNil
+lemmaAllSmallGen {m} {v = (x::xs)} = case isLT x m of
+  Yes prfLT => ASSucc prfLT (lemmaAllSmallGen {m = m} {v = xs})
+  No prfNo1 =>assert_total $ idris_crash "There exists no automatic proof that the Vector is Injective"
+
+export 
+%hint 
+lemmaIsInjectiveT : {m:Nat} -> {v: Vect n Nat} -> IsInjectiveT m v
+lemmaIsInjectiveT {m} {v} = IsInjectiveSucc (lemmaAllDiffGen {v = v}) (lemmaAllSmallGen {m = m} {v = v})
+
+export 
+%hint 
+lemmaIsInjectiveTk : {m: Nat -> Nat} -> {v: Nat-> Vect n Nat} -> ({k: Nat} -> IsInjectiveT (m k) (v k))
+lemmaIsInjectiveTk {m} {v} = IsInjectiveSucc (lemmaAllDiffGen {v = v k}) (lemmaAllSmallGen {m = m k} {v = v k})
+
+{-
+export
+%hint
+lemmaSuccInjg: {k:Nat} -> IsInjectiveT (S (S k)) [S k, 0]
+lemmaSuccInjg {k} = lemmaIsInjectiveTk {m = \l => S (S k)} {v = \d => [ S d, 0]}
+
+export
+%hint
+lemmaSuccInj: {k:Nat} -> IsInjectiveT (S (S k)) [S k, 0]
+lemmaSuccInj {k} = IsInjectiveSucc 
+  (AllDiffSucc (IsDiffSucc (Right (ltzs k)) (IsDiffNil)) (AllDiffSucc (IsDiffNil) (AllDiffNil)))
+(ASSucc (lteRefl (S (S k))) (ASSucc (ltzss k) (ASNil))) 
+
+
+export
+%hint
+lemmaSuccInjPlus: {k:Nat} -> IsInjectiveT (S (k + 1)) [S k, 0]  
+lemmaSuccInjPlus {k} = rewrite sym $ Data.Nat.plusOneSucc k in (rewrite plusCommutative k 1 in lemmaSuccInjg)-}
 
 --LEMMAS USED BY THE TENSOR FUNCTION
 export

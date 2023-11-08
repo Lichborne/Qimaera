@@ -155,6 +155,7 @@ export
 ifInjectiveThenSubInjective : IsInjectiveT m (x::xs) -> IsInjectiveT m xs
 ifInjectiveThenSubInjective (IsInjectiveSucc allDiff allSmall)= IsInjectiveSucc (ifAllDiffThenSubDiff allDiff) (ifAllSmallThenSubSmall allSmall)
 
+
 {-public export
 data EitherAnd : (sumType: Either a b) -> Type where
     EitherNil : EitherAnd sumType
