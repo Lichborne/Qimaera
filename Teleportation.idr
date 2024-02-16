@@ -32,7 +32,7 @@ teleportation : QuantumOp t =>
                 (1 _ : Qubit) -> QStateT (t 1) (t 1) Qubit
 teleportation q0 = do
   [q1, q2] <- newQubits 2
-  [q0,q1,q2] <- applyUnitary [q0,q1,q2] telep1 
+  [q0,q1,q2] <- applyUnitary [q0,q1,q2] telep1
   [b1, b2] <- measure [q0,q1]
   [q] <- applyUnitary [q2] (unitary_correction b1 b2) 
   pure q

@@ -3,13 +3,14 @@ module QStateT
 import Control.Monad.State
 import LinearTypes
 import Control.Linear.LIO
+import Lemmas
 
 %default total
+
 
 public export
 R : Type -> Type
 R = L IO {use = Linear}
-
 
 --Inspired by the indexed state monad in Haskell, and for linear types
 public export
@@ -30,14 +31,11 @@ pure x = MkQST (\st => pure1 (st # x))
 
 public export
 (>>=) : (1 _ : QStateT i m a) -> (1 _ : ((1 _ : a) -> QStateT m o b)) -> QStateT i o b
-v >>= f = MkQST $ \i => do 
-                         (a # m) <- runQStateT i v
-                         runQStateT a (f m)
+v >>= f = MkQST $ \i => runQStateT i v >>= \(a # m) => runQStateT a (f m)
 
 
 public export
 modify : ((1 _ : i) -> o) -> QStateT i o ()
 modify f = MkQST $ \i => pure1 (f i # ())
-
 
 
