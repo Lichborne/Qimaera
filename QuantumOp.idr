@@ -100,19 +100,6 @@ interface QuantumOp (0 t : Nat -> Type) where
   run : QStateT (t 0) (t 0) (Vect n Bool) -> IO (Vect n Bool)
 
 
-||| This is how we may think of the unitary that does Hadamard^{\otimes n}.
-||| n      - the arity of the unitary operation
-||| n + m  - the size of the quantum state on which this is getting applied
-||| qs     - the qubits on which we are going to apply the unitary map
-||| output - quantum state transformer from a quantum state of size (n+m) to a quantum state of size (n+m) that gives a
-|||          list of n qubits (the resulting qubits on which the unitary was applied) that the user has access to
-{-mapH : QuantumOp t => (n : Nat) -> (m : Nat) -> (1 qs : LVect n Qubit) -> QStateT (t (n+m)) (t (n+m)) (LVect n Qubit)
-mapH 0 m [] = pure []
-mapH (S n) m (q :: qs) = do
-  hq <- applyH q 
-  hqs <- mapH {t = t} n (S m) qs
-  pure (hq :: hqs)
--}
 
 
 
@@ -161,18 +148,6 @@ newQubitsPointers 0 _ = ([] # [])
 newQubitsPointers (S p) counter = 
   let (q # v) = newQubitsPointers p (S counter)
   in (MkQubit counter :: q) #  (MkQubit counter :: v)
-{-}
-applyUnitary'' : {n : Nat} -> {i : Nat} ->
-  (1 _ : LVect i Qubit) -> Unitary i -> (1 _ : SimulatedOp n) -> R (LPair (SimulatedOp n) (LVect i Qubit))
-  applyUnitary'' v u us = 
-    let (us1 # v') # ind = listIndices us v 
-      us2 = applyCirc ind u us1
-    in pure1 (us2 # v') where
-      applyCirc : Vect i Nat -> Unitary i -> (1 _ : SimulatedOp n) -> SimulatedOp n
-      applyCirc v IdGate ust = ust
-      applyCirc v gate (MkSimulatedOp vs un counter) = 
-      --let MkUnitaryUse vs un counter = applyCirc v g st in
-      MkSimulatedOp vs (apply gate un v {prf = believe_me ()}) counter -}
 
 ||| Auxiliary function for applying a circuit to some qubits
 private
@@ -185,18 +160,18 @@ applyUnitary' v u q =
     applyCirc : Vect i Nat -> Unitary i -> (1 _ : SimulatedOp n) -> SimulatedOp n
     applyCirc v IdGate qst = qst
     applyCirc v (H j g) st = 
-      let k = indexLT j v 
+      let k = index j v 
           h = simpleTensor matrixH n k
           MkSimulatedOp qst q counter = applyCirc v g st
       in MkSimulatedOp (h `matrixMult` qst) q counter
     applyCirc v (P p j g) st = 
-      let k = indexLT j v
+      let k = index j v
           ph = simpleTensor (matrixP p) n k
           MkSimulatedOp qst q counter = applyCirc v g st
       in MkSimulatedOp (ph `matrixMult` qst) q counter
     applyCirc v (CNOT c t g) st = 
-      let kc = indexLT c v
-          kt = indexLT t v
+      let kc = index c v
+          kt = index t v
           cn =  tensorCNOT n kc kt
           MkSimulatedOp qst q counter = applyCirc v g st
       in MkSimulatedOp (cn `matrixMult` qst) q counter
@@ -239,7 +214,7 @@ measureQubits' (x :: xs) qs = do
        (b' :: bs') => pure1 (s1 # (b :: b' :: bs'))
 
 ------- SIMULATE CIRCUITS : OPERATIONS ON QUANTUM STATES ------
-  
+
 
 ||| Add new qubits to a Quantum State
 export
@@ -278,11 +253,3 @@ QuantumOp SimulatedOp where
   applyUnitary = applyUnitarySimulated
   measure      = measureSimulated
   run          = runSimulated
-
-export
-QuantumOp Unitary where
-  newQubits    = newQubits
-  applyUnitary = apply
-  measure      = measure
-  run          = run
-

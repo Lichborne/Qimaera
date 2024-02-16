@@ -2,7 +2,6 @@ module UStateT
 import Control.Monad.State
 import LinearTypes
 import Control.Linear.LIO
-import UnitaryLinear
 
 public export
 R : Type -> Type
@@ -33,31 +32,13 @@ v >>= f = MkUST $ \i => do
                          runUStateT a (f m)
 
 
-    
 public export
 modify : ((1 _ : i) -> o) -> UStateT i o ()
 modify f = MkUST $ \i => pure1 (f i # ())
 
 
-{-}
-implementation Functor (UStateT (Unitary n) (Unitary n)) where
-  map func fa = do
-    a <- fa
-    UStateT.pure (func $ (fromLinear a))
-
-implementation Functor f => Applicative (UStateT (Unitary n) (Unitary n)) where
-  pure a =  UStateT.pure a
-  (<*>) fg st = do 
-      func <- fg
-      un <- st
-      UStateT.pure $ func un
-
-
-
 {-
-get : UStateT s m s
-get = MkUST $ (\s => do
-      pure s)}
+
    ||| Apply the Hadamard gate 
   applyH : {n : Nat} -> Unitary i -> Unitary n -> {auto prf: LT i n} -> {auto valid: LTE 2 n} 
               -> UStateT (Vect i (Fin n)) (Vect n (Fin )) (Unitary n)

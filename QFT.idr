@@ -6,9 +6,6 @@ import Decidable.Equality
 import Unitary
 import Injection
 import Lemmas
-import QuantumOp
-import QStateT
-import LinearTypes
 
 %default total
 
@@ -55,18 +52,8 @@ qftRec 0 = IdGate
 qftRec 1 = HGate
 qftRec (S (S k)) = 
   let t1 = (qftRec (S k)) # IdGate
-  in rewrite sym $ lemmaplusOneRight k in apply (cRm (S (S k))) t1 [S k, 0] 
+  in rewrite sym $ lemmaplusOneRight k in apply (cRm (S (S k))) t1 [S k, 0] {prf = lemmaInj1 k}
 
-export
-qftRec2 : QuantumOp t => (n : Nat) -> QStateT (t n) (t n) (LVect n Qubit)
-qftRec2 0 = pure []
-qftRec2 1 = do
-  q <- newQubit 
-  qH <- applyH q
-  pure qH
-qftRec2 (S (S k)) = 
-  let t1 = (qftRec2 (S k)) # IdGate in
-  rewrite sym $ lemmaplusOneRight k in applyUnitary [S k, 0] (cRm (S (S k))) t1 
 
 ||| QFT unitary circuit for n qubits
 |||
@@ -78,5 +65,3 @@ qft (S k) =
   let g = qftRec (S k)
       h = (IdGate {n = 1}) # (qft k)
   in h . g
-
-
