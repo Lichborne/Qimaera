@@ -13,7 +13,7 @@ import QStateT
 import Control.Linear.LIO
 import LinearTypes
 import Unitary
-import CombinedOp
+import UnitaryOp
 import UStateT
 
 ||| The Qubit type is used to identify individual qubits. The Nat argument is
@@ -41,7 +41,7 @@ interface QuantumOp (0 t : Nat -> Type) where
     pure q
   
   ||| Apply a unitary circuit to the qubits specified by the COmbinedOp argument
-  applyUnitary : {n : Nat} -> {i : Nat} -> (1_: UStateT (t n) (t n) (LVect i Qubit)) -> QStateT (t n) (t n) (LVect i Qubit)
+  applyUnitary : UnitaryOp r => {n : Nat} -> {i : Nat} -> (1_: UStateT (r n) (r n) (LVect i Qubit)) -> QStateT (t n) (t n) (LVect i Qubit)
 
   ||| Apply the Hadamard gate to a single qubit
   applyH : {n : Nat} -> (1 _ : Qubit) -> QStateT (t n) (t n) Qubit

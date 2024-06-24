@@ -103,7 +103,7 @@ tensor g1 g2 =
       p4 = IsInjectiveSucc (allDiffRangeVect 0 n) p3
   in apply {i = p} {n = n + p} g2 (apply {i=n} {n = n+p} g1 (IdGate {n = n+p}) (rangeVect 0 n) {prf = p4}) (rangeVect n p) {prf = p2}
 
-private
+public export
 (#) : {n : Nat} -> {p : Nat} -> (1 _ : Unitary n) -> (1 _ : Unitary p) -> Unitary (n + p)
 (#) = tensor
 
@@ -179,6 +179,16 @@ RyGate p = SAdjGate . HGate . PGate (-p) . HGate . SGate
 public export
 RzGate : Double -> Unitary 1
 RzGate p = PGate p 
+
+public export
+CX : (n: Nat) -> (m: Nat) -> {auto prf : LT n m} -> {auto prf2: LT 0 n} -> Unitary m
+CX _ 0 {prf} = absurd prf
+CX 0 (S l) {prf} {prf2} = absurd prf2 
+CX (S k) (S l) = (CNOT 0 (S k) (IdGate))
+
+public export
+RZCX : (gamma: Double) -> {n:Nat} -> {m:Nat} -> {auto prf : LT n m} -> {auto prf2: LT 0 n} -> Unitary m
+RZCX g {n} {m} = (P g n (CX n m))
 
 
 ---------------------CONTROLLED VERSIONS-----------------------

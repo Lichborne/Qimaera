@@ -4,7 +4,7 @@ import Data.Nat
 import Data.Vect
 import Graph
 import Lemmas
-import Unitary
+import UnitaryLinear
 import Control.Linear.LIO
 import QStateT
 import Injection
@@ -13,6 +13,8 @@ import Complex
 import System.Random
 import QuantumOp
 import RandomUtilities
+import UnitaryOp
+import UStateT
 
 %default total
 
@@ -27,7 +29,7 @@ import RandomUtilities
 mixingUnitary : (n : Nat) -> (beta : Double) -> Unitary n
 mixingUnitary n beta = tensorn n (RxGate beta)
 
-||| Helper function for costUnitary
+{-} Helper function for costUnitary
 ||| m              -- number of vertices of the input subgraph
 ||| n              -- number of remaining edges between current vertex and the rest
 ||| prf            -- proof witness that the number of vertices does not exceed the arity of the operator
@@ -48,7 +50,18 @@ costUnitary' {n = S k} gamma (True  :: xs) currentUnitary =
       rzcx   = P gamma (S k) cx
       rest   = costUnitary' gamma xs currentUnitary
   in rest . cx . rzcx
+  -}
 
+costUnitaryOp' : UnitaryOp t => {i:Nat} -> {n : Nat} -> {m : Nat} -> {auto prf : LT n m} -> 
+    (gamma : Double) -> (edges : Vect n Bool) -> (1 _ : LVect m Qubit) -> UStateT (t i) (t i) (LVect m Qubit)
+costUnitaryOp' _ [] lvect = pure lvect
+costUnitaryOp' g (False :: bs) lvect = costUnitaryOp' g bs lvect
+costUnitaryOp' {i = i} {n = (S k)} {m = m} {prf} g (True :: bs) qs = do
+      first <- UnitaryOp.applyUnitary qs (P g (S k) (CX (S k) m))
+      second <- UnitaryOp.applyUnitary first (CX (S k) m)
+      rest <- costUnitaryOp' g bs second
+      pure rest 
+{-
 ||| The unitary operator induced by the cost hamiltonian.
 ||| n      -- the number of vertices of the input graph
 ||| graph  -- the input graph
@@ -60,7 +73,16 @@ costUnitary (AddVertex graph edges) gamma =
   let circuit = (IdGate {n = 1}) # (costUnitary graph gamma)
       proof1 = lemmaLTSucc n
   in costUnitary' gamma edges circuit
+-}
+costUnitaryOp : UnitaryOp t => {i:Nat} -> {n : Nat} -> {m : Nat} -> (graph: Graph n) ->
+  (gamma : Double) -> (1 _ : LVect n Qubit) -> UStateT (t i) (t i) (LVect n Qubit)
+costUnitaryOp Empty _ any = pure any 
+costUnitaryOp {i = i} {n = S k} {m = m} (AddVertex graph edges) gamma (q::qs) = do
+    rec <- costUnitaryOp {t = t} {i = i} {n = k} {m = m} graph gamma qs
+    fin <- costUnitaryOp' gamma edges (q::rec)
+    pure fin
 
+{-
 ||| The iterated cost and mixing unitaries for QAOA_p
 ||| n       -- the number of vertices of the graph
 ||| p       -- the "p" parameter of QAOA_p, i.e., the number of iterations of the mixing and cost unitaries
@@ -76,7 +98,21 @@ QAOA_Unitary' [] [] g = IdGate
 QAOA_Unitary' (beta :: betas) (gamma :: gammas) g = 
   let circuit = QAOA_Unitary' betas gammas g 
   in circuit . mixingUnitary n beta . costUnitary g gamma
+-}
+QAOA_UnitaryOp' : UnitaryOp t => {i:Nat} -> {n : Nat} ->
+  (betas : Vect p Double) -> (gammas : Vect p Double) -> 
+  (graph: Graph n) ->
+  (1 _ : LVect n Qubit) ->
+  UStateT (t i) (t i) (LVect n Qubit)
+QAOA_UnitaryOp' [] [] _ qs = pure qs
+QAOA_UnitaryOp' _ _ Empty any = pure any
+QAOA_UnitaryOp' {i = i} {n = S k} (beta :: betas) (gamma :: gammas) g (q::qs) = do 
+  costUOp <- costUnitaryOp {i = i} {n = S k} {m = (S k)} g gamma (q::qs)
+  mixed <- UnitaryOp.applyUnitary costUOp (mixingUnitary (S k) beta)
+  fin <- QAOA_UnitaryOp' betas gammas g mixed
+  pure fin
 
+{-
 ||| The overall unitary operator for QAOA_p
 ||| n       -- the number of vertices of the graph
 ||| p       -- the "p" parameter of QAOA_p, i.e., the number of iterations of the mixing and cost unitaries
@@ -90,7 +126,16 @@ QAOA_Unitary : {n : Nat} ->
                (graph: Graph n) ->
                Unitary n
 QAOA_Unitary betas gammas graph = (QAOA_Unitary' betas gammas graph) . (tensorn n HGate)
-
+-}
+QAOA_UnitaryOp : UnitaryOp t => {i:Nat} -> {n : Nat} ->
+  (betas : Vect p Double) -> (gammas : Vect p Double) -> 
+  (graph: Graph n) ->
+  (1 _ : LVect n Qubit) ->
+  UStateT (t i) (t i) (LVect n Qubit)
+QAOA_UnitaryOp betas gammas graph qs = do
+  tensored <- UnitaryOp.applyUnitary qs (tensorn n HGate)
+  qaoaUni <- QAOA_UnitaryOp' betas gammas graph tensored
+  pure qaoaUni
 
 -------------------------CLASSICAL PART------------------------
 
@@ -124,22 +169,22 @@ classicalOptimisation g ys = do
 ||| k      -- number of times we sample (the number of times we execute QAOA_p)
 ||| graph  -- input graph of the problem
 ||| output -- all observed cuts and all rotation angles from all the runs of QAOA
-QAOA' : QuantumOp t =>
+QAOA' : UnitaryOp r => QuantumOp t =>
         {n : Nat} ->
         (k : Nat) -> (p : Nat) -> (graph : Graph n) ->
         IO (Vect k (Vect p Double, Vect p Double, Cut n))
 QAOA' 0 p graph = pure []
 QAOA' (S k) p graph = do
-  previous_info <- QAOA' {t} k p graph 
+  previous_info <- QAOA' {r} {t} k p graph 
   (betas, gammas) <- classicalOptimisation graph previous_info
-  let circuit = QAOA_Unitary betas gammas graph
   cut <- run (do
               qs <- newQubits {t} n
-              qs <- applyUnitary qs circuit 
-              measureAll qs
+              us <- applyUnitary (QAOA_UnitaryOp {t = r} betas gammas graph qs)
+              measureAll us
               )
   pure $ (betas, gammas, cut) :: previous_info
 
+{-
 ||| QAOA for the MAXCUT problem. Given an input graph, return the best observed cut after some number of iterations.
 ||| 
 ||| n      -- number of vertices of the input graph
@@ -154,6 +199,17 @@ QAOA : QuantumOp t =>
        IO (Cut n)
 QAOA k p graph = do
   res <- QAOA' {t} k p graph
+  let cuts = map (\(_, _, cut) => cut) res
+  let (cut,size) = bestCut graph cuts
+  pure cut
+-}
+
+QAOA : UnitaryOp r => QuantumOp t =>
+       {n : Nat} ->
+       (k : Nat) -> (p : Nat) -> Graph n ->
+       IO (Cut n)
+QAOA k p graph = do
+  res <- QAOA' {r} {t} k p graph
   let cuts = map (\(_, _, cut) => cut) res
   let (cut,size) = bestCut graph cuts
   pure cut

@@ -18,6 +18,16 @@ lemmaplusOneRight : (n : Nat) -> n + 1 = S n
 lemmaplusOneRight n = rewrite plusCommutative n 1 in Refl
 
 export
+%hint
+lemmaplusOneRightH : {n : Nat} -> n + 1 = S n
+lemmaplusOneRightH {n = n} = rewrite plusCommutative n 1 in Refl
+
+export
+%hint
+lemmaplusOneRightHSym : {n : Nat} ->  S n = n + 1 
+lemmaplusOneRightHSym {n = n} = sym $ rewrite plusCommutative n 1 in Refl
+
+export
 lemmaPlusSRight : (n : Nat) -> (k : Nat) -> plus n (S k) = S (plus n k)
 lemmaPlusSRight Z     k = Refl
 lemmaPlusSRight (S p) k = rewrite lemmaPlusSRight p k in Refl
@@ -80,79 +90,98 @@ lemmaSymDiff {x = (S k)} {y = 0} _ = Refl
 lemmaSymDiff {x = (S k)} {y = (S j)} prf = lemmaSymDiff {x = k} {y = j} prf
 
 
-export
+export 
+%hint
 lemma1LTESucc : (k : Nat) -> LTE 1 (S k)
 lemma1LTESucc 0 = lteRefl 1
 lemma1LTESucc (S k) = lteSuccRight $ lemma1LTESucc k
 
-export
+export 
+%hint
 lemma0LTSucc : (k : Nat) -> LT 0 (S k)
 lemma0LTSucc Z = lteRefl 1
 lemma0LTSucc (S k) = lteSuccRight $ lemma0LTSucc k
 
 
-export
+export 
+%hint
 lemmaLTEAddR : (n : Nat) -> (p : Nat) -> LTE n (n+p)
 lemmaLTEAddR Z 0 = lteRefl Z
 lemmaLTEAddR Z (S k) = LTEZero
 lemmaLTEAddR (S n) p = LTESucc $ lemmaLTEAddR n p
 
-export
+export 
+%hint
 lemmaLTEAddL : (n : Nat) -> (p : Nat) -> LTE p (n+p)
 lemmaLTEAddL n p = rewrite plusCommutative n p in lemmaLTEAddR p n
 
 
-export
+export 
+%hint
 lemmaDiffSuccPlus : (k : Nat) -> (p : Nat) -> (k /= S (p + k)) = True
 lemmaDiffSuccPlus 0 p = Refl
 lemmaDiffSuccPlus (S k) j = rewrite sym $ plusSuccRightSucc j k in lemmaDiffSuccPlus k j
 
-export
+export 
+%hint
 lemmaLTSuccPlus : (k : Nat) -> (p : Nat) -> LT k (S (k+p))
 lemmaLTSuccPlus 0 0 = lteRefl 1
 lemmaLTSuccPlus 0 (S j) = lteSuccRight $ fromLteSucc $ LTESucc $ lemmaLTSuccPlus 0 j
 lemmaLTSuccPlus (S k) j = LTESucc $ lemmaLTSuccPlus k j
 
-export
+export 
+%hint
 lemmaLTSucc : (k : Nat) -> LT k (S k)
 lemmaLTSucc 0 = lteRefl 1
 lemmaLTSucc (S k) = LTESucc $ lemmaLTSucc k
 
-export
+export 
+%hint
 lemmakLTSk : (k : Nat) -> LT (S k) (S (k+1))
 lemmakLTSk k = rewrite lemmaplusOneRight k in (LTESucc $ lemmaLTSucc k)
 
-export
+export 
+%hint
 lemmaLTSuccLT : (k : Nat) -> (n : Nat) -> LT (S k) n -> LT k n
 lemmaLTSuccLT k 0 prf impossible
 lemmaLTSuccLT 0 n prf = fromLteSucc $ lteSuccRight prf
 lemmaLTSuccLT (S k) (S n) prf = lteSuccLeft prf
 
-export
+export 
+%hint
 lemmaLTESuccLT : (k : Nat) -> (n : Nat) -> LTE (S k) n -> LT k n
 lemmaLTESuccLT k 0 prf impossible
 lemmaLTESuccLT 0 n prf = prf
 lemmaLTESuccLT (S k) (S j) prf = prf
 
 
-export
+export 
+%hint
 lemmaLTESuccLTE : (k : Nat) -> (n : Nat) -> LTE (S k) n -> LTE k n
 lemmaLTESuccLTE k 0 prf impossible
 lemmaLTESuccLTE 0 _ _ = LTEZero
 lemmaLTESuccLTE (S k) (S j) prf = lteSuccLeft prf
+
 export 
+%hint
 lemmaSuccsLT : (k : Nat) -> (n : Nat) -> LT (S k) (S n) -> LT k n
 lemmaSuccsLT k n prf = fromLteSucc prf
 
-export
+export 
+%hint
 lemmaCompLT0 : (n : Nat) -> (j : Nat) -> {auto prf : LT j n} -> LT 0 n
 lemmaCompLT0 n 0 {prf} = prf
 lemmaCompLT0 p (S k) {prf} = lemmaCompLT0 p k {prf = fromLteSucc $ lteSuccRight prf}
 
+export 
+%hint
+sPlusEq : {k:Nat} -> {m:Nat} -> S (plus k m) = plus k (S m)
+sPlusEq {k=k} {m=m} = rewrite plusSuccRightSucc k m in Refl
 
 --LEMMAS ABOUT <, >, =, /=, <=, >= : TRANSITIVITY
 
-export
+export 
+%hint
 lemmaTransLTESLTE : (i : Nat) -> (n : Nat) -> (p : Nat) -> LTE i n -> LTE (S n) p -> LTE (S i) p
 lemmaTransLTESLTE 0 0 (S k) _ _ = lemma1LTESucc k
 lemmaTransLTESLTE i n k prf1 prf2 = lteTransitive (LTESucc prf1) prf2
@@ -277,7 +306,7 @@ lemmaControlledInj2 (S k) (S j) (S i) = IsInjectiveSucc
     (AllDiffSucc (IsDiffSucc (eitherLTtoSucc prf3) (IsDiffNil)) 
       (AllDiffSucc (IsDiffNil) (AllDiffNil))))
   (ASSucc (ltzss k) (ASSucc (LTESucc prf1) (ASSucc (LTESucc prf2) (ASNil))))
-
+                      
 export 
 %hint
 lemmaIsDiffGen : (m:Nat) -> (v: Vect n Nat) -> IsDifferentT m v
