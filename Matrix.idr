@@ -16,7 +16,7 @@ Vector : Nat -> Type
 Vector n = Vect n (Complex Double)
 
 
-private
+export
 idRow : (n : Nat) -> Nat -> Vector n
 idRow 0 _ = []
 idRow (S k) 0 = 1 :: idRow k (S k)
@@ -44,7 +44,7 @@ vectProduct : Vector n -> Vector n -> Complex Double
 vectProduct [] [] = 0
 vectProduct (x :: xs) (y :: ys) = x * y + vectProduct xs ys
 
-private
+export
 makeCol : Vector n -> Matrix n 1
 makeCol [] = []
 makeCol (x :: xs) = [x] :: makeCol xs
@@ -218,6 +218,15 @@ export
 ket0 : (n : Nat) -> Matrix n 2
 ket0 0 = []
 ket0 (S k) = [1 , 0] :: ket0 k
+
+export
+ket1 : (n : Nat) -> Matrix n 2
+ket1 0 = []
+ket1 (S k) = [1 , 1] :: ket1 k
+
+export
+neutralIdPow : (n : Nat) -> Matrix (power 2 n) 1
+neutralIdPow n = toTensorBasis (ket1 n)
 
 export
 inv : Double -> Double

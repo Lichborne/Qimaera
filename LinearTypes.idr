@@ -11,6 +11,9 @@ public export
 data LFstPair : Type -> Type -> Type where
   (#) : (1 _ : a) -> b -> LFstPair a b
 
+public export
+fstLFP : LFstPair a b -> a
+fstLFP ((#) a b) = a
 
 public export
 data LVect : Nat -> Type ->  Type where
@@ -62,7 +65,3 @@ consLin False (x :: xs) = False :: x :: xs
 consLin True [] = [True]
 consLin True (x :: xs) = True :: x :: xs
 
-public export
-toVect : (1 _ : LVect n Bool) -> Vect n Bool
-toVect [] = []
-toVect (x :: xs) = x `consLin` (toVect xs)

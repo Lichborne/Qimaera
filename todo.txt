@@ -1,2 +1,33 @@
 * write default applyUnitary implementation after the Idris2 developers fix the "rewrite linearity" bug
   - see: https://github.com/idris-lang/Idris2/issues/1861
+
+
+||| Find an element in a list : used to find the wire of a qubit
+export
+listIndex' : {n : Nat} -> (1_: Vect n Qubit) -> Qubit -> Nat
+listIndex' [] _ = 0
+listIndex' (MkQubit x :: xs) (MkQubit k) = if x == k then 0 else S (listIndex' xs (MkQubit k))
+
+export
+listIndex : (1 _ : SimulatedOp n) -> (1 _ : Qubit) -> LPair (LPair (SimulatedOp n) Qubit) Nat
+listIndex (MkSimulatedOp qs v counter) (MkQubit k) = let MkPair v' v'' = toVectQNonLin v in 
+                  (MkSimulatedOp qs v' counter # MkQubit k) # (listIndex' v'' (MkQubit k))
+
+reLinNat : (1_: Nat) -> Qubit
+reLinNat Z = MkQubit Z
+reLinNat (S k) = MkQubit (S k)       
+
+lCons : (1_: Nat) -> (1_: Vect k Nat) -> Vect (S k) Nat
+lCons Z [] = [Z]
+lCons Z (x :: xs) = Z :: x :: xs
+lCons (S k) [] = [(S k)]
+lCons (S k) (x :: xs) = (S k) :: x :: xs  
+
+
+export
+listIndices : (1 _ : SimulatedOp n) -> (1 _ : LVect i Qubit) -> LPair (LPair (SimulatedOp n) (LVect i Qubit)) (Vect i Nat)
+listIndices qs [] = (qs # []) # []
+listIndices qs (x :: xs) = 
+  let (qs' # x') # y = listIndex qs x
+      (qs2 # xs') # ys = listIndices qs' xs
+  in (qs2 # (x' :: xs')) # (y `lCons` ys)

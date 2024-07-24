@@ -78,9 +78,16 @@ compose (H j g1) g2 = H j (compose g1 g2)
 compose (P p j g1) g2 = P p j (compose g1 g2)
 compose (CNOT c t g1) g2 = CNOT c t (compose g1 g2)
 
+export
+composeN : {n:Nat} -> (1 _ : Unitary n) -> (1 _ : Unitary n) -> Unitary n
+composeN IdGate g1 = g1
+composeN (H j g1) g2 = H j (compose g1 g2)
+composeN (P p j g1) g2 = P p j (compose g1 g2)
+composeN (CNOT c t g1) g2 = CNOT c t (compose g1 g2)
+
 public export
 (.) : (1 _ : Unitary n) -> (1 _ : Unitary n) -> Unitary n
-(.) = compose
+(.) = compose 
 
 ---------------------------ADJOINT-----------------------------
 |||Find the adjoint of a circuit
@@ -220,7 +227,7 @@ controlledP p =
 
 |||Make the controlled version of a gate
 public export
-controlled : {n : Nat} -> Unitary n -> Unitary (S n)
+controlled : {n : Nat} -> (1 _ :Unitary n) -> Unitary (S n)
 controlled IdGate = IdGate
 controlled (H j g) = 
   let p = lemmaControlledInj n j 

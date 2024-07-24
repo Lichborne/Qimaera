@@ -6,6 +6,12 @@ import Decidable.Equality
 import Injection
 import Complex
 import NatRules
+import LinearTypes
+import public Data.Linear.Notation
+import public Data.Linear.Interface
+import System
+import Data.Linear
+
 
 %default total
 
@@ -13,6 +19,57 @@ public export
 data Qubit : Type where
   MkQubit : (n : Nat) -> Qubit
 
+
+Consumable Qubit where
+  consume (MkQubit Z) = ()
+  consume (MkQubit (S k)) = ()
+
+Consumable Nat where
+  consume (Z) = ()
+  consume ((S k)) = ()
+
+public export 
+consLinQ : (Qubit) -> (1_: Vect n Qubit) -> Vect (S n) Qubit
+consLinQ (MkQubit Z) [] = [(MkQubit Z)]
+consLinQ (MkQubit Z) (x :: xs) = (MkQubit Z) :: x :: xs
+consLinQ ((MkQubit (S k))) [] = [MkQubit (S k)]
+consLinQ (MkQubit (S k)) (x :: xs) = (MkQubit (S k)) :: x :: xs  
+
+
+public export
+toVectQ : (1 _ : LVect n Qubit) -> (Vect n Qubit)
+toVectQ [] = []
+toVectQ ((MkQubit k):: xs) = (MkQubit k) `consLinQ` (toVectQ xs)
+
+
+public export
+unrestrictVect : (1 _ : Vect n Qubit) -> (Vect n Qubit)
+unrestrictVect [] = Data.Vect.Nil
+unrestrictVect ((MkQubit k) :: xs) = Data.Vect.(::) (MkQubit k) (unrestrictVect xs)
+
+---public export
+---uVecAux : (1 _ : Vect n Qubit) -> ((!*) (Vect n Qubit))
+---uVecAux [] = MkBang []
+---uVecAux (x :: xs) = MkBang (x::xs)
+
+public export
+unrestrictVec : (1 _ : Vect n Qubit) -> ((Vect n Qubit))
+unrestrictVec [] = unrestricted $ MkBang []
+unrestrictVec (x :: xs) =  (unrestricted $ MkBang (x)) :: (unrestricted $ MkBang (unrestrictVec xs))
+
+public export
+toVectUnr : (1 _ : LVect n Qubit) -> ((Vect n Qubit))
+toVectUnr any = unrestrictVec (toVectQ any)
+
+public export
+toVectQNonLin : (1_ : Vect n Qubit) -> Pair (Vect n Qubit) (Vect n Qubit)
+toVectQNonLin [] = MkPair [] []
+toVectQNonLin ((MkQubit k):: xs) = let rest = (toVectQNonLin xs) in MkPair ((MkQubit k) :: (fst rest)) ((MkQubit k) :: (snd rest))
+{-}
+public export
+sndtoVect : (1_ : Pair (Vect n Qubit) (Vect n Qubit)) -> Vect n Qubit
+sndtoVect pair = snd pair
+-}
 export
 lemmaplusOneRight : (n : Nat) -> n + 1 = S n
 lemmaplusOneRight n = rewrite plusCommutative n 1 in Refl

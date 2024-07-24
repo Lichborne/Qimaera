@@ -4,8 +4,11 @@ import Data.Vect
 import QStateT
 import QuantumOp
 import LinearTypes
-import Unitary
+import UnitaryLinear
 import Data.List
+import UnitaryOp
+import Lemmas
+import UStateT
 
 ||| Problem: Given an input qubit |q> and a single-qubit unitary operation U,
 |||          return the state U|q>. The "Repeat Until Success" approach solves
@@ -20,24 +23,34 @@ import Data.List
 ||| For more information, see https://arxiv.org/abs/1311.1074
 
 export
-RUS : QuantumOp t => (1 _ : Qubit) -> (u' : Unitary 2) -> (e : Unitary 1) -> QStateT (t 1) (t 1) Qubit
+RUS_U2 : UnitaryOp t => (1_: LVect 2 Qubit) -> (Unitary 2) -> (UStateT (t 2) (t 2) (LVect 2 Qubit))
+RUS_U2 q u' = do
+  [q2, q2']<- applyUnitary q u'
+  pure [q2, q2']
+
+RUS_U1 : UnitaryOp t => (1_: LVect 1 Qubit) -> (Unitary 1) -> (UStateT (t 1) (t 1) (LVect 1 Qubit))
+RUS_U1 q u' = do
+  q' <- applyUnitary q u'
+  pure q'
+
+RUS : QuantumOp t => UnitaryOp t => (1 _ : Qubit) -> (u' : Unitary 2) -> (e : Unitary 1) -> QStateT (t 1) (t 1) Qubit
 RUS q u' e = do
-  q' <- newQubit
-  [q',q] <- applyUnitary [q',q] u'
-  b <- measureQubit q'
-  if b then do
-         [q] <- applyUnitary [q] (adjoint e)
-         RUS q u' e
-       else pure q 
+    q' <- newQubit
+    [q',q] <- (applyUnitaryQ (RUS_U2 [q',q] u'))
+    b <- measureQubit q'
+    if b then do
+           [q] <- (applyUnitaryQ (RUS_U1 [q] (adjoint e)))
+           RUS q u' e
+         else pure q 
 
 ||| Figure 8 of https://arxiv.org/abs/1311.1074
 example_u' : Unitary 2
 example_u' = H 0 $ T 0 $ CNOT 0 1 $ H 0 $ CNOT 0 1 $ T 0 $ H 0 IdGate
 
 export
-runRUS : QuantumOp t => IO Bool
+runRUS : QuantumOp t => UnitaryOp t => IO Bool
 runRUS = do
-  [b] <- run (do
+  [b] <- runQ (do
               q <- newQubit {t = t}
               q <- RUS q example_u' IdGate
               measure [q]
