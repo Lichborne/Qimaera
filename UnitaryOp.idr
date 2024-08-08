@@ -24,33 +24,9 @@ import Data.Linear.Interface
 ||| quantum state. It is parameterised by the number of Qubits it contains.
 export
 interface UnitaryOp (0 t : Nat -> Type) where
-{-
-  applyUnitaryAbs : {n : Nat} -> {i : Nat} -> (1 _ : LVect i Qubit) -> UStateT (t (n+i)) (t (n+i)) (LVect i Qubit)
 
-  applyControlledP : {n : Nat} -> (1 _ : Qubit) -> (1 _ : Qubit) -> UStateT (t n) (t n) (LVect 2 Qubit)
--}
-  applyHAbs : {n : Nat} -> (1 _ : Qubit) -> UStateT (t n) (t n) (LVect 1 Qubit)
-
-  applyPAbs : {n : Nat} -> Double -> (1 _ : Qubit) -> UStateT (t n) (t n) (LVect 1 Qubit)
-
-  applyCNOTAbs : {n : Nat} -> (1 _ : Qubit) -> (1 _ : Qubit) -> UStateT (t n) (t n) (LVect 2 Qubit)
-
-  applytU : {n : Nat} -> {i : Nat} ->  (1 _ : LVect i Qubit) -> t i -> UStateT (t (n)) (t (n)) (LVect i Qubit)
-
-  applyHT : {n : Nat} -> (1 _ : Qubit) -> (hadamard : t 1) -> UStateT (t (n)) (t (n)) (LVect 1 Qubit)
-  applyHT q hadamard = do
-    [q1] <- applytU {n} {i = 1} [q] hadamard
-    pure [q1]
-
-  applyPT : {n : Nat} -> Double -> (1 _ : Qubit) -> (pgate : (Double -> t 1)) -> UStateT (t (n)) (t (n)) (LVect 1 Qubit)
-  applyPT d q pgate = do
-    [q1] <- applytU {n} {i = 1} [q] (pgate d)
-    pure [q1]
-    
-  applyCNOTT : {n : Nat} -> (1 _ : Qubit)  -> (1 _ : Qubit) -> (cnot : t 2) -> UStateT (t (n)) (t (n)) (LVect 2 Qubit)
-  applyCNOTT c t cnot = do
-    [q1 , q2] <- applytU {n} {i = 2} [c, t] cnot
-    pure [q1 , q2]
+  applyUnitaryAbs : {n : Nat} -> {i : Nat} -> (1_ : UStateT (t n) (t n) (LVect i Qubit))
+                    -> UStateT (t n) (t n) (LVect i Qubit)
 
   ||| Apply a unitary circuit to the Qubits specified by the Vect argument
   applyUnitary : {n : Nat} -> {i : Nat} ->
@@ -73,7 +49,9 @@ interface UnitaryOp (0 t : Nat -> Type) where
   applyCNOT q1 q2 = do
     [q1,q2] <- applyUnitary {n} {i = 2} ([q1,q2]) CNOTGate
     pure (q1::q2::[])
-
+  
+  applyControlledU : {i:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (t n) (t n) (LVect i Qubit))
+                               -> UStateT (t n) (t n) (LVect (S i) Qubit) 
   ||| sequence to the end
   run :  {i : Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LVect i Qubit) ) -> (LPair (t n) (LVect i Qubit))
 
@@ -155,6 +133,22 @@ applyUnitarySimulated : {n : Nat} -> {i : Nat} ->
   (1 _ : LVect i Qubit) -> Unitary i -> UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)
 applyUnitarySimulated lvect ui = MkUST (applyUnitary' lvect ui)
 
+lvectify : (1 _ : Vect i Qubit) -> (LVect i Qubit)
+lvectify [] = []
+lvectify (x :: xs) = LinearTypes.(::) x (lvectify xs)
+
+mergeVects : (1 _ : Vect n Qubit) -> (1 _ : Vect i Qubit) -> ( LVect i Qubit)
+mergeVects [] [] = []
+mergeVects [] vect = lvectify vect
+mergeVects (x :: xs) [] = mergeVects xs []
+mergeVects (x :: xs) (y :: ys) = mergeVects xs (y::ys)
+
+mergeLVects : (1 _ : LVect n Qubit) -> (1 _ : LVect i Qubit) -> (LVect i Qubit)
+mergeLVects [] [] = []
+mergeLVects [] lvect = lvect
+mergeLVects (xs) [] = mergeVects (toVectQ xs) []
+mergeLVects (xs) (ys) = mergeVects (toVectQ xs) (toVectQ ys)
+
 private
 applytU' : {n : Nat} -> {i : Nat} ->
                 (1 _ : LVect i Qubit) -> (SimulatedOp i) -> (1 _ : SimulatedOp n) -> (LPair (SimulatedOp n) (LVect i Qubit))
@@ -227,8 +221,32 @@ applyCNOTSim q1 q2 = MkUST (applyCNOTAbs' q1 q2)
 
 public export
 run' : {i:Nat} -> (1_: SimulatedOp n) -> (1 _ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit) ) -> LPair (SimulatedOp n) (LVect i Qubit)
-run' {i = i} simop ust = runUStateT simop ust      
+run' {i = i} simop ust = runUStateT simop ust
 
+||| Auxiliary function for applying a circuit to some qubits
+private
+applyUnitaryAbs' : {n : Nat} -> {i : Nat} ->
+  (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)) -> (1 _ : SimulatedOp n) -> (LPair (SimulatedOp n) (LVect i Qubit))
+applyUnitaryAbs' ust (MkSimulatedOp qs v counter) = let (Builtin.(#) opOut lvect) = (UnitaryOp.run' (MkSimulatedOp qs v counter) ust) in do
+ (Builtin.(#) opOut lvect)
+
+ 
+export
+applyUnitaryAbsSimulated : {n : Nat} -> {i : Nat} ->
+  (1_ : (UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit) ))-> UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)
+applyUnitaryAbsSimulated q = MkUST (applyUnitaryAbs' q)
+
+private
+applyControlledAbs' : {n : Nat} -> {i : Nat} -> (1 _ : Qubit) ->
+  (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)) -> (1 _ : SimulatedOp n) -> (LPair (SimulatedOp n) (LVect (S i) Qubit))
+applyControlledAbs' q ust (MkSimulatedOp qs v counter) = let (Builtin.(#) opOut lvect) = (UnitaryOp.run' (MkSimulatedOp qs v counter) ust) in do
+ (Builtin.(#) opOut (q ::lvect ))
+
+ 
+export
+applyControlledAbsSimulated : {n : Nat} -> {i : Nat} -> (1_ : Qubit) ->
+  (1_ : (UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit) )) -> UStateT (SimulatedOp n) (SimulatedOp n) (LVect (S i) Qubit)
+applyControlledAbsSimulated control q = MkUST (applyControlledAbs' control q)
 
 
 {-}
@@ -349,8 +367,6 @@ run' {i = i} simop ust = runUStateT simop ust
 export
 UnitaryOp SimulatedOp where
   applyUnitary = applyUnitarySimulated
-  applytU      = applyUnitaryTSim
-  applyHAbs    = applyHSim
-  applyPAbs    = applyPSim
-  applyCNOTAbs    = applyCNOTSim
+  applyUnitaryAbs  = applyUnitaryAbsSimulated
+  applyControlledU = applyControlledAbsSimulated
   run          = run' 

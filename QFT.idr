@@ -28,6 +28,15 @@ Rm m = PGate (2 * pi / (pow 2 (cast m)))
 cRm : Nat -> Unitary 2
 cRm m = controlled (Rm m)
 
+RmUOp : UnitaryOp t => {n:Nat} -> Nat -> (1_: Qubit) -> UStateT (t n) (t n) (LVect 1 Qubit)
+RmUOp m q = do
+  q <- applyP (2 * pi / (pow 2 (cast m))) q
+  pure q
+
+cRmUOp : UnitaryOp t => {n:Nat} -> Nat -> (1_: Qubit) -> (1_: Qubit) -> UStateT (t n) (t n) (LVect 2 Qubit)
+cRmUOp m c u = applyControlledU c (RmUOp m u)
+
+
 --applyControlledRm : {n : Nat} -> (1 _ : Qubit) -> (1 _ : Qubit) -> UStateT (t n) (t n) (LPair Qubit Qubit)
 --applyCNOT q1 q2 = do
   --[q1,q2] <- applyUnitary {n} {i = 2} ([q1,q2]) (controlled (PGate (2 * pi / (pow 2 (cast m)))))
@@ -130,13 +139,33 @@ qftU {n} {i = S k} (q::qs) = do
     qs'' <- qftU qs'
     pure (q'' :: qs'')
 
-qftQ : UnitaryOp t => QuantumOp t => (i : Nat) -> (n: Nat) -> (1 _ : LVect i Qubit) -> QStateT (t n) (t n) (LVect i Qubit)
-qftQ i n qs = applyUnitaryQ {t=t} (qftU {t=t} {i = i} {n = n} (qs))
+--qftQ : UnitaryOp t => QuantumOp t => (i : Nat) -> (n: Nat) -> (1 _ : LVect i Qubit) -> QStateT (t n) (t n) (LVect i Qubit)
+--qftQ i n qs = applyUnitaryQ {t=t} (qftU {t=t} {i = i} {n = n} (qs))
+
+rotate' : UnitaryOp t => {n:Nat} -> {i:Nat} -> (m:Nat) -> (1_ : Qubit) -> (1 _ : LVect i Qubit) -> UStateT (t (n)) (t (n)) (LVect (S i) Qubit)
+rotate' m q [] = pure (q :: [])
+rotate' {n} {i = (S k)} m q (p::ps) = do
+        (q' :: [p']) <- applyUnitaryAbs (cRmUOp m q p)
+        (q'' :: ps') <- rotate' (S m) q' ps
+        pure (q'':: p':: ps')
+
+
+qftU' :  UnitaryOp t => {n:Nat} -> {i:Nat} -> (1 _ : LVect i Qubit)-> UStateT (t (n)) (t (n)) (LVect (i) Qubit)
+qftU' [] = pure []
+qftU' {n} {i = S k} (q::qs) = do
+    (q' :: Nil ) <- applyH q
+    (q'' :: qs') <- rotate' (S (S Z)) q' qs
+    qs'' <- qftU' qs'
+    pure (q'' :: qs'')
+
+qftQ' : UnitaryOp t => QuantumOp t => (i : Nat) -> (n: Nat) -> (1 _ : LVect i Qubit) -> QStateT (t n) (t n) (LVect i Qubit)
+qftQ' i n qs = let (qs1 # qs2) = distributeDupedLVect qs in
+  applyUnitaryQ {t=t} qs1 (qftU' {t=t} {i = i} {n = n} (qs2))
 
 runQFT : UnitaryOp t => QuantumOp t => IO (Vect 3 Bool)
 runQFT = runQ {t=t} (do
     qs <- newQubits 3 {t = t}
-    qfts <- qftQ {t=t} 3 3 qs 
+    qfts <- qftQ' {t=t} 3 3 qs 
     measureAll qfts
     )
 
@@ -145,7 +174,7 @@ testQFT = (do
   bs <- runQFT { t = SimulatedOp }
   pure bs)
 
-
+{-}
 patternRec : UnitaryOp t => (n : Nat) -> (m: Nat) -> (unitary : (k:Nat) -> Unitary k) -> (baseCaseUnitary : Unitary 1) -> 
   (1 _ : LVect n Qubit) -> UStateT (t m) (t m) (LVect n Qubit)
 patternRec 0 m unitary baseCaseUnitary [] = pure LinearTypes.Nil
@@ -239,12 +268,7 @@ qft (S k) m (q::qs) = qftRecU {t=t} {i =(S k)} {m = m} (q::qs) >>= \(l::ls) => q
 |||
 ||| n -- number of qubits
 export
-qft : (n : Nat) -> Unitary n
-qft 0 = IdGate
-qft (S k) = 
-  let g = qftRec (S k)
-      h = (IdGate {n = 1}) # (qft k)
-  in h . g
+:
 
 qftQ : QuantumOp t => (n : Nat) -> (m: Nat) -> (1 _ : LVect n Qubit) -> QStateT (t (n+m)) (t (n+m)) (LVect n Qubit)
 qftQ 0 m []= pure []

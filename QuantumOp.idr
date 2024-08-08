@@ -176,7 +176,15 @@ applyUnitarySimulated lvect q = MkQST (applyUnitary' lvect q)
 export
 measureSimulated : {n : Nat} -> {i : Nat} -> (1 _ : LVect i Qubit) -> QStateT (SimulatedOp (i + n)) (SimulatedOp n) (Vect i Bool)
 measureSimulated v = MkQST (measureQubits' v)
+
+export
+distributeDupedLVect : (1 _ : LVect i Qubit) -> LPair (LVect i Qubit) (LVect i Qubit) 
+distributeDupedLVect [] = [] # []
+distributeDupedLVect (MkQubit k :: xs) = 
+  let (q # v) = distributeDupedLVect xs in
+  (MkQubit k :: q ) # (MkQubit k :: v)
 {-
+
 applyUnitary' : {n : Nat} -> {i : Nat} ->
   (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)) -> (1 _ : SimulatedOp n) -> R (LPair (SimulatedOp n) (LVect i Qubit))
 applyUnitary' ust simopIn = let (Builtin.(#) simopOut lvectOut) = (UnitaryOp.run simopIn ust) in do
