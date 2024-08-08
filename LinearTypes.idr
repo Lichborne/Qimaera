@@ -65,3 +65,5 @@ consLin False (x :: xs) = False :: x :: xs
 consLin True [] = [True]
 consLin True (x :: xs) = True :: x :: xs
 
+
+

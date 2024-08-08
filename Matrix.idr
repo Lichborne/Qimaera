@@ -186,6 +186,19 @@ simpleTensor m (S n) 0 = m `tensorProduct` (simpleTensor m n (S n))
 simpleTensor m (S n) (S k) = (matrixId 2) `tensorProduct` (simpleTensor m n k)
 
 export
+toDensityRep : { n : Nat } -> Matrix (power 2 n) 1 -> Matrix (power 2 n) (power 2 n) 
+toDensityRep m = matrixMult m (transposeMatrix m)
+
+--subMatN : (k : Nat) -> Matrix (power 2 n) (power 2 n) -> Matrix 2
+
+export
+tensorUp : Matrix (power 2 i) 1 -> (n : Nat) -> (Vect i Qubit) -> Matrix (power 2 n) (power 2 n)
+tensorUp _ 0 _ = [[1]]
+tensorUp _ n [] = matrixId (power 2 n)-- should not happen
+tensorUp m (S n) (x::xs) = believe_me ()
+  
+
+export
 tensorCnotAux : (n : Nat) -> (control : Nat) -> (target : Nat) -> Matrix (power 2 n) (power 2 n)
 tensorCnotAux 0 _ _ = [[1]]
 tensorCnotAux (S n) 0 0 = (matrixId 2) `tensorProduct` (tensorCnotAux n (S n) (S n)) --should not be happening

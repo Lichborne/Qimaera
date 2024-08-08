@@ -24,19 +24,34 @@ import Data.Linear.Interface
 ||| quantum state. It is parameterised by the number of Qubits it contains.
 export
 interface UnitaryOp (0 t : Nat -> Type) where
-{-}
+{-
   applyUnitaryAbs : {n : Nat} -> {i : Nat} -> (1 _ : LVect i Qubit) -> UStateT (t (n+i)) (t (n+i)) (LVect i Qubit)
 
-  applyHAbs : {n : Nat} -> (1 _ :  LVect 1 Qubit) -> UStateT (t n) (t n) (LVect 1 Qubit)
+  applyControlledP : {n : Nat} -> (1 _ : Qubit) -> (1 _ : Qubit) -> UStateT (t n) (t n) (LVect 2 Qubit)
+-}
+  applyHAbs : {n : Nat} -> (1 _ : Qubit) -> UStateT (t n) (t n) (LVect 1 Qubit)
 
   applyPAbs : {n : Nat} -> Double -> (1 _ : Qubit) -> UStateT (t n) (t n) (LVect 1 Qubit)
 
   applyCNOTAbs : {n : Nat} -> (1 _ : Qubit) -> (1 _ : Qubit) -> UStateT (t n) (t n) (LVect 2 Qubit)
 
-  applyControlledP : {n : Nat} -> (1 _ : Qubit) -> (1 _ : Qubit) -> UStateT (t n) (t n) (LVect 2 Qubit)
+  applytU : {n : Nat} -> {i : Nat} ->  (1 _ : LVect i Qubit) -> t i -> UStateT (t (n)) (t (n)) (LVect i Qubit)
 
-  applytU : {n : Nat} -> {i : Nat} ->  (1 _ : LVect i Qubit) -> t i -> UStateT (t (n+i)) (t (n+i)) (LVect i Qubit)
--}
+  applyHT : {n : Nat} -> (1 _ : Qubit) -> (hadamard : t 1) -> UStateT (t (n)) (t (n)) (LVect 1 Qubit)
+  applyHT q hadamard = do
+    [q1] <- applytU {n} {i = 1} [q] hadamard
+    pure [q1]
+
+  applyPT : {n : Nat} -> Double -> (1 _ : Qubit) -> (pgate : (Double -> t 1)) -> UStateT (t (n)) (t (n)) (LVect 1 Qubit)
+  applyPT d q pgate = do
+    [q1] <- applytU {n} {i = 1} [q] (pgate d)
+    pure [q1]
+    
+  applyCNOTT : {n : Nat} -> (1 _ : Qubit)  -> (1 _ : Qubit) -> (cnot : t 2) -> UStateT (t (n)) (t (n)) (LVect 2 Qubit)
+  applyCNOTT c t cnot = do
+    [q1 , q2] <- applytU {n} {i = 2} [c, t] cnot
+    pure [q1 , q2]
+
   ||| Apply a unitary circuit to the Qubits specified by the Vect argument
   applyUnitary : {n : Nat} -> {i : Nat} ->
                  (1 _ : LVect i Qubit) -> Unitary i -> UStateT (t n) (t n) (LVect i Qubit)
@@ -58,7 +73,6 @@ interface UnitaryOp (0 t : Nat -> Type) where
   applyCNOT q1 q2 = do
     [q1,q2] <- applyUnitary {n} {i = 2} ([q1,q2]) CNOTGate
     pure (q1::q2::[])
-
 
   ||| sequence to the end
   run :  {i : Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LVect i Qubit) ) -> (LPair (t n) (LVect i Qubit))
@@ -140,6 +154,76 @@ applyUnitary' v u q =
 applyUnitarySimulated : {n : Nat} -> {i : Nat} ->
   (1 _ : LVect i Qubit) -> Unitary i -> UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)
 applyUnitarySimulated lvect ui = MkUST (applyUnitary' lvect ui)
+
+private
+applytU' : {n : Nat} -> {i : Nat} ->
+                (1 _ : LVect i Qubit) -> (SimulatedOp i) -> (1 _ : SimulatedOp n) -> (LPair (SimulatedOp n) (LVect i Qubit))
+applytU' v u q = 
+  let (qs # v') # ind = listIndices q v 
+      qs2 = applyCirc ind u qs
+  in (qs2 # v') where
+    applyCirc : Vect i Nat -> (SimulatedOp i) -> (1 _ : SimulatedOp n) -> SimulatedOp n
+    applyCirc v (MkSimulatedOp ui qi ci) (MkSimulatedOp qst qn cn) = 
+          MkSimulatedOp ((tensorUp ui n qi)`matrixMult` qst) qn cn
+
+applyUnitaryTSim : {n : Nat} -> {i : Nat} ->
+  (1 _ : LVect i Qubit) -> (SimulatedOp i) -> UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)
+applyUnitaryTSim lvect simi = MkUST (applytU' lvect simi)
+
+applyHAbs' : {n : Nat} -> (1 _ : Qubit) -> (1 _ : SimulatedOp n) -> (LPair (SimulatedOp n) (LVect 1 Qubit))
+applyHAbs' v q = 
+  let 
+    (qs # v') # ind = listIndices q [v] 
+    qs2 = applyHAux ind qs
+    in 
+      (qs2 # v') where
+        applyHAux : Vect 1 Nat -> (1 _ : SimulatedOp n) -> SimulatedOp n
+        applyHAux [v] (MkSimulatedOp qst q counter) = 
+          let 
+          h = simpleTensor matrixH n v
+          in 
+            MkSimulatedOp (h `matrixMult` qst) q counter
+
+applyHSim : {n : Nat} -> 
+(1 _ : Qubit) -> UStateT (SimulatedOp n) (SimulatedOp n) (LVect 1 Qubit)
+applyHSim q = MkUST (applyHAbs' q)
+
+
+applyPAbs' : {n : Nat} -> Double -> (1 _ : Qubit) -> (1 _ : SimulatedOp n) -> (LPair (SimulatedOp n) (LVect 1 Qubit))
+applyPAbs' d v q = 
+  let 
+    (qs # v') # ind = listIndices q [v] 
+    qs2 = applyPAux ind d qs
+    in 
+      (qs2 # v') where
+        applyPAux : Vect 1 Nat -> Double -> (1 _ : SimulatedOp n) -> SimulatedOp n
+        applyPAux [v] d (MkSimulatedOp qst q counter) = 
+          let 
+          h = simpleTensor (matrixP d) n v
+          in 
+            MkSimulatedOp (h `matrixMult` qst) q counter
+
+applyPSim : {n : Nat} -> Double ->
+(1 _ : Qubit) -> UStateT (SimulatedOp n) (SimulatedOp n) (LVect 1 Qubit)
+applyPSim d q = MkUST (applyPAbs' d q)
+
+applyCNOTAbs' : {n : Nat} -> (1 _ : Qubit) -> (1 _ : Qubit) -> (1 _ : SimulatedOp n) -> (LPair (SimulatedOp n) (LVect 2 Qubit))
+applyCNOTAbs' q1 q2 q = 
+  let 
+    (qs # v') # ind = listIndices q [q1, q2] 
+    qs2 = applyCNOTAux ind qs
+    in 
+      (qs2 # v') where
+        applyCNOTAux : Vect 2 Nat -> (1 _ : SimulatedOp n) -> SimulatedOp n
+        applyCNOTAux [v1, v2] (MkSimulatedOp qst q counter) = 
+          let 
+          h = tensorCNOT n v1 v2
+          in 
+            MkSimulatedOp (h `matrixMult` qst) q counter
+
+applyCNOTSim : {n : Nat} -> (1 _ : Qubit) ->
+(1 _ : Qubit) -> UStateT (SimulatedOp n) (SimulatedOp n) (LVect 2 Qubit)
+applyCNOTSim q1 q2 = MkUST (applyCNOTAbs' q1 q2)
 
 public export
 run' : {i:Nat} -> (1_: SimulatedOp n) -> (1 _ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit) ) -> LPair (SimulatedOp n) (LVect i Qubit)
@@ -265,4 +349,8 @@ run' {i = i} simop ust = runUStateT simop ust
 export
 UnitaryOp SimulatedOp where
   applyUnitary = applyUnitarySimulated
+  applytU      = applyUnitaryTSim
+  applyHAbs    = applyHSim
+  applyPAbs    = applyPSim
+  applyCNOTAbs    = applyCNOTSim
   run          = run' 

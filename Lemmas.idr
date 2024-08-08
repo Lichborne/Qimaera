@@ -41,6 +41,12 @@ toVectQ : (1 _ : LVect n Qubit) -> (Vect n Qubit)
 toVectQ [] = []
 toVectQ ((MkQubit k):: xs) = (MkQubit k) `consLinQ` (toVectQ xs)
 
+Consumable (Vect i elem) where 
+    consume [] = ()
+    consume (x :: xs) = ()
+
+discardq : (1_ : LVect n Qubit) -> ()
+discardq lvect = consume (toVectQ lvect)
 
 public export
 unrestrictVect : (1 _ : Vect n Qubit) -> (Vect n Qubit)
