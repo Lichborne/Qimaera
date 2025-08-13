@@ -4,13 +4,15 @@ import Data.Nat
 import Data.Vect
 import Data.List
 import LinearTypes
+import Lemmas
 import Control.Linear.LIO
-import Unitary
+import UnitaryLinear
 import QStateT
 import System.Random
 import Injection
 import Complex
 import QuantumOp
+import UnitaryOp
 
 
 ------------------------ Example of circuits built with unitary contructors -----------------------
@@ -235,19 +237,18 @@ drawDepthExamples = do
 
 ||| Sequencing quantum operations using run
 ||| 
-quantum_operation4 : QuantumOp t => IO (Vect 3 Bool)
-quantum_operation4 = 
-  run (do
+quantum_operation4 : UnitaryOp t => QuantumOp t => QStateT (t 0) (t (3)) (LVect 3 Qubit)
+quantum_operation4 = do
       [q1,q2] <- newQubits {t=t} 2                      --create 2 new qubits q1 and q2
-      [q1,q2] <- applyUnitary [q1,q2] toBellBasis       --apply the toBellBasis unitary circuit to q1 and q2
+      [q1,q2] <- applyUnitaryQ [q1,q2] (applyUnitary [q1,q2] toBellBasis)       --apply the toBellBasis unitary circuit to q1 and q2
       q3 <- newQubit                                    --create 1 new qubit q3
-      [q1,q3,q2] <- applyUnitary [q1,q3,q2] toffoli     --apply toffoli gate on q1, q3 and q2
+      [q1,q3,q2] <- applyUnitaryQ [q1,q3,q2] (applyUnitary [q1,q3,q2] toffoli)     --apply toffoli gate on q1, q3 and q2
       [b2] <- measure [q2]                              --measure q2
-      (q3 # q1) <- applyCNOT q3 q1                      --apply CNOT on q3 and q1
+      (q3 # q1) <- applyUnitaryQ [q3,q1] (applyCNOT q3 q1)                     --apply CNOT on q3 and q1
       [b1,b3] <- measure [q1,q3]                        --measure q1 and q3
       pure [b1,b2,b3]                                   --return the results
-      )
-
+      
+{-}
 drawQuantumOp : IO ()
 drawQuantumOp = do
   [b1,b2,b3] <- quantum_operation4 {t = SimulatedOp}
@@ -259,7 +260,7 @@ drawQuantumOp = do
   putStrLn $ "Measure q2 : result is " ++ show b2
   putStrLn "Apply CNOT on q3 and q1"
   putStrLn $ "Measure q1 and q3 : results are " ++ show b1 ++ " and " ++ show b3
-
+-}
 ------------------------------------ Draw all example circuits ------------------------------------
 
 export

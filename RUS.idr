@@ -58,25 +58,15 @@ RUS q u' e = do
 
 example_uAbs : QuantumOp t => UnitaryOp t => (1_: LVect 2 Qubit) -> (UStateT (t 2) (t 2) (LVect 2 Qubit))
 example_uAbs [q0, q1] = do
-  [q0] <- applyHAbs q0
-  [q0] <- applyPAbs (0.7854) q0
-  [q0, q1] <- applyCNOTAbs q0 q1 
-  [q0] <- applyHAbs q0
-  [q0, q1] <- applyCNOTAbs q0 q1 
-  [q0] <- applyPAbs (0.7854) q0
+  [q0] <- applyH q0
+  [q0] <- applyP (0.7854) q0
+  [q0, q1] <- applyCNOTq0 q1 
+  [q0] <- applyH q0
+  [q0, q1] <- applyCNOT q0 q1 
+  [q0] <- applyP (0.7854) q0
   pure [q0, q1]
 
-example_ut : QuantumOp t => UnitaryOp t => (hadamard : t 1) -> (cnot: t 2) -> (pgate : (Double -> t 1) ) -> (1_: LVect 2 Qubit) -> (UStateT (t 2) (t 2) (LVect 2 Qubit))
-example_ut h cnot p  [q0, q1] = do
-  [q0] <- applyHT q0 h
-  [q0] <- applytU [q0] (p (0.7854))
-  [q0, q1] <- applyCNOTT q0 q1 cnot
-  [q0] <- applyHT q0 h
-  [q0, q1] <- applyCNOTT q0 q1 cnot
-  [q0] <- applytU [q0] (p (0.7854))
-  [q0] <- applyHT q0 h
-  pure [q0, q1]
-{-
+
 ||| Figure 8 of https://arxiv.org/abs/1311.1074
 example_u' : {ut : Type} -> ut
 example_u' = H 0 $ T 0 $ CNOT 0 1 $ H 0 $ CNOT 0 1 $ T 0 $ H 0 IdGate
@@ -102,4 +92,4 @@ testMultipleRUS n = do
   s <- sequence (Data.List.replicate n f)
   let heads = filter (== True) s
   putStrLn $ "Number of '1' outcomes: " ++ (show (length heads)) ++ " out of " ++ (show n) ++ " measurements."
--}
+{--}
