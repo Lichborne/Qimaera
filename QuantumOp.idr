@@ -16,6 +16,7 @@ import UnitaryLinear
 import UnitaryOp
 import UStateT
 import Control.Linear.LIO
+import Qubit
 
 ||| The Qubit type is used to identify individual qubits. The Nat argument is
 ||| used to uniquely identify a qubit. This type does *not* carry any quantum
@@ -37,21 +38,27 @@ interface QuantumOp (0 t : Nat -> Type) where
 
   ||| Prepare a single new qubit in state |0>
   newQubit : QStateT (t n) (t (S n)) Qubit
-  newQubit = rewrite sym $ lemmaplusOneRight n in do
+  newQubit = rewrite sym $ lemmaplusOneRight {n = n} in do
     [q] <- newQubits 1
     pure q
   
-  ||| Apply a unitary circuit to the qubits specified by the COmbinedOp argument
-  applyUnitaryQ : {n : Nat} -> {i : Nat} -> (1_ : LVect i Qubit) -> (1_: UStateT (t n) (t n) (LVect i Qubit)) -> QStateT (t n) (t n) (LVect i Qubit)
+  ||| Apply a unitary circuit to the qubits specified by the Vector argument
+  applyUnitaryQ : {n : Nat} -> {i : Nat} -> (1_: UStateT (t n) (t n) (LVect i Qubit)) -> QStateT (t n) (t n) (LVect i Qubit)
+
+  ||| Apply Hadamard to specified qubit
+  applyHQ: UnitaryOp t => {n : Nat} -> (1_ : Qubit) -> QStateT (t n) (t n) (LVect 1 Qubit)
+  applyHQ q = do
+              q <- applyUnitaryQ {t = t} (applyH {t = t} {n = n } (q))
+              pure q
 
   ||| Measure some qubits in a quantum state
   public export
-  measure : {n : Nat} -> {i : Nat} -> (1 _ : LVect i Qubit) -> QStateT (t (i + n)) (t n) (Vect i Bool)
+  measureQ : {n : Nat} -> {i : Nat} -> (1 _ : LVect i Qubit) -> QStateT (t (i + n)) (t n) (Vect i Bool)
   
   ||| Measure only one qubit
   measureQubit : {n : Nat} -> (1 _ : Qubit) -> QStateT (t (S n)) (t n) Bool
   measureQubit q = do
-    [b] <- measure [q]
+    [b] <- measureQ [q]
     pure b
   ||| Same as measure, but with an initial state of n + i instead of i + n qubits to help with theorem proving in some cases
   -- public export
@@ -106,14 +113,33 @@ mergeLVects [] lvect = lvect
 mergeLVects (xs) [] = mergeVects (toVectQ xs) []
 mergeLVects (xs) (ys) = mergeVects (toVectQ xs) (toVectQ ys)
 
+||| Applying a circuit to some qubits
+private
+applyUnitary' : {n : Nat} -> {i : Nat} ->
+  (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)) -> (1 _ : SimulatedOp n) -> R (LPair (SimulatedOp n) (LVect i Qubit))
+applyUnitary' ust (MkSimulatedOp qs v counter) = let (Builtin.(#) opOut lvect) = (UnitaryOp.run' (MkSimulatedOp qs v counter) ust) in do
+  pure1 (Builtin.(#) opOut lvect)
+
+||| Apply a unitary circuit to a SimulatedOp Alt
+export
+applyUnitarySimulated : {n : Nat} -> {i : Nat} ->
+  ( 1 _ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit) ) -> QStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)
+applyUnitarySimulated ust = MkQST (applyUnitary' ust)
 
 
 ||| Auxiliary function for applying a circuit to some qubits
 private
-applyUnitary' : {n : Nat} -> {i : Nat} -> (1 _ : LVect i Qubit) ->
+applyUnitaryAbs' : {n : Nat} -> {i : Nat} -> (1 _ : LVect i Qubit) ->
   (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)) -> (1 _ : SimulatedOp n) -> R (LPair (SimulatedOp n) (LVect i Qubit))
-applyUnitary' lvectIn ust (MkSimulatedOp qs v counter) = let (Builtin.(#) opOut lvect) = (UnitaryOp.run' (MkSimulatedOp qs v counter) ust) in do
+applyUnitaryAbs' lvectIn ust (MkSimulatedOp qs v counter) = let (Builtin.(#) opOut lvect) = (UnitaryOp.run' (MkSimulatedOp qs v counter) ust) in do
   pure1 (Builtin.(#) opOut (mergeLVects lvect lvectIn))
+
+||| Apply a unitary circuit to a SimulatedOp
+export
+applyUnitarySimulatedAbs : {n : Nat} -> {i : Nat} -> (1_ : LVect i Qubit) ->
+  ( 1 _ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit) ) -> QStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)
+applyUnitarySimulatedAbs lvect q = MkQST (applyUnitaryAbs' lvect q)
+
 
 ||| Auxiliary function for measurements
 private
@@ -165,24 +191,18 @@ newQubitsSimulated p = MkQST (newQubits' p) where
     in pure1 (MkSimulatedOp (tensorProductVect qs s') (v ++ v') (counter + q) # qubits)
 
 
-||| Apply a unitary circuit to a SimulatedOp
-export
-applyUnitarySimulated : {n : Nat} -> {i : Nat} -> (1_ : LVect i Qubit) ->
-  ( 1 _ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit) ) -> QStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)
-applyUnitarySimulated lvect q = MkQST (applyUnitary' lvect q)
-
 
 ||| Measure some qubits in a quantum state
 export
 measureSimulated : {n : Nat} -> {i : Nat} -> (1 _ : LVect i Qubit) -> QStateT (SimulatedOp (i + n)) (SimulatedOp n) (Vect i Bool)
 measureSimulated v = MkQST (measureQubits' v)
 
+
+%hint
 export
-distributeDupedLVect : (1 _ : LVect i Qubit) -> LPair (LVect i Qubit) (LVect i Qubit) 
-distributeDupedLVect [] = [] # []
-distributeDupedLVect (MkQubit k :: xs) = 
-  let (q # v) = distributeDupedLVect xs in
-  (MkQubit k :: q ) # (MkQubit k :: v)
+qubitlvect : (1_ : Qubit) -> LVect 1 Qubit
+qubitlvect q = [q]
+
 {-
 
 applyUnitary' : {n : Nat} -> {i : Nat} ->
@@ -190,9 +210,7 @@ applyUnitary' : {n : Nat} -> {i : Nat} ->
 applyUnitary' ust simopIn = let (Builtin.(#) simopOut lvectOut) = (UnitaryOp.run simopIn ust) in do
     pure1 (Builtin.(#) simopOut lvectOut)  
 
-%hint
-qubitlvect : (1_ : Qubit) -> LVect 1 Qubit
-qubitlvect q = [q]
+
 
 pentupleNat : (1_ : Nat) -> Vect 5 Nat
 pentupleNat Z = [Z,Z,Z,Z,Z]
@@ -279,7 +297,7 @@ export
 QuantumOp SimulatedOp where
   newQubits    = newQubitsSimulated
   applyUnitaryQ = applyUnitarySimulated
-  measure      = measureSimulated
+  measureQ      = measureSimulated
   runQ          = runSimulated
 {- 
 

@@ -4,6 +4,7 @@ import Control.Monad.State
 import LinearTypes
 import Control.Linear.LIO
 import Lemmas
+import Qubit
 
 %default total
 
@@ -23,17 +24,17 @@ public export
 runQStateT : (1 _ : initialType) -> (1 _ : QStateT initialType finalType returnType) -> R (LPair finalType returnType)
 runQStateT i (MkQST f) = f i
 
-
+||| Pure (linear)
 public export
 pure : (1 _ : a) -> QStateT t t a
 pure x = MkQST (\st => pure1 (st # x))
 
-
+||| Bind
 public export
 (>>=) : (1 _ : QStateT i m a) -> (1 _ : ((1 _ : a) -> QStateT m o b)) -> QStateT i o b
 v >>= f = MkQST $ \i => runQStateT i v >>= \(a # m) => runQStateT a (f m)
 
-
+||| mod (linear)
 public export
 modify : ((1 _ : i) -> o) -> QStateT i o ()
 modify f = MkQST $ \i => pure1 (f i # ())

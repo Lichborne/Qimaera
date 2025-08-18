@@ -5,7 +5,7 @@ import Control.Linear.LIO
 import UnitaryLinear
 
 
--- LPair {use = Linear}
+
 
 
 

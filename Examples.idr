@@ -4,22 +4,28 @@ import Data.Nat
 import Data.Vect
 import Data.List
 import LinearTypes
-import Lemmas
 import Control.Linear.LIO
 import UnitaryLinear
 import QStateT
+import UStateT
 import System.Random
 import Injection
 import Complex
 import QuantumOp
 import UnitaryOp
+import Qubit
+import Lemmas
 
+
+%auto_implicit_depth 50
+
+%search_timeout 1000
 
 ------------------------ Example of circuits built with unitary contructors -----------------------
 
 -- These functions only use the 4 constructors of the Unitary data type : IdGate, H, P, and CNOT
 
-||| Put two qubits initally in state |00> in the Bell state
+||| Put two qubits initally in state |00> in the Bell state; this is the old format, just declaring unitaries
 public export
 toBellBasis : Unitary 2
 toBellBasis = CNOT 0 1 (H 0 IdGate)
@@ -32,19 +38,32 @@ drawToBellBasis = do
   draw toBellBasis
 
 
-constructorsExample : Unitary 3
-constructorsExample = H 1 (P (pi/2) 2 (CNOT 2 0 IdGate))
+||| New Format, using Unitary Op.
+public export
+toBellBasisNew : UnitaryOp t => {n:Nat} -> (1 _ : LVect 2 Qubit) -> UStateT (t (n)) (t (n)) (LVect (2) Qubit)
+toBellBasisNew [q0,q1]= do
+            [q0] <- applyH q0
+            [q0,q1] <- applyCNOT q0 q1
+            pure [q0,q1]
 
-drawConstructorsExample : IO ()
-drawConstructorsExample = do
-  putStrLn "An example of circuit built with H, P and CNOT constructors :"
-  putStrLn " H 1 (P (pi/2) 2 (CNOT 2 0 IdGate))"
-  draw constructorsExample
+||| H 1 (P (pi/2) 2 (CNOT 2 0 IdGate)) - note that because of Idris's current ahndling of Either, 
+||| when only using the Unitary type this no longer works automatically, as idris cannot find both whether LT 2 0 or LT 0 2     
+constructorsExampleNew : UnitaryOp t => {n:Nat} -> (1 _ : LVect 3 Qubit) -> UStateT (t (n)) (t (n)) (LVect (3) Qubit)
+constructorsExampleNew [q1,q2,q3]= do
+            [q3n,q1f] <- applyCNOT q3 q1
+            [q3f] <- applyP (pi/2) q3n
+            [q2f] <- applyH q2
+            pure [q1f,q2f,q3f]
+
+
 
 
 ---------------------------------- Examples using composition -------------------------------------
 
 -- Sequential composition of unitary circuits
+-- Sequential composition in this manner can be used for small things without issue
+-- but it is advised that sequential abstract application is used via UnitaryOp 
+-- as the more robust equivalent
 
 compose_example1 : Unitary 1
 compose_example1 = TGate . HGate
@@ -63,6 +82,9 @@ drawComposeExamples = do
 ------------------------------------ Examples using tensor product --------------------------------
 
 -- Parallel composition (ie tensor product) of unitary circuits
+-- Can still be used, but it is advised that it is used only in the manner below,
+-- using the provided gateset or small prebuilts, and once again only as a basis
+-- for building larger circuits using UnitaryOp.
 
 ||| Example using the # operator for tensor product
 tensorExample1 : Unitary 4
@@ -146,29 +168,6 @@ apply_example1 = apply toBellBasis U [0,1]
 apply_example2 : Unitary 3
 apply_example2 = apply toBellBasis U [0,2]
 
-apply_example3 : Unitary 3
-apply_example3 = apply toBellBasis U [2,0]
-
-apply_example4 : Unitary 3
-apply_example4 = apply toBellBasis U [2,1]
-
-apply_example5 : Unitary 3
-apply_example5 = apply toffoli IdGate [2,0,1]
-
-drawApplyExamples : IO ()
-drawApplyExamples = do
-  putStrLn "\nApply Examples \nU = HGate # IdGate {n = 1} # (PGate pi)\n"
-  putStrLn "Example 1 : apply toBellBasis U [0,1]"
-  draw apply_example1
-  putStrLn "Example 2 : apply toBellBasis U [0,2]"
-  draw apply_example2
-  putStrLn "Example 3 : apply toBellBasis U [2,0]"
-  draw apply_example3
-  putStrLn "Example 4 : apply toBellBasis U [2,1]"
-  draw apply_example4
-  putStrLn "Example 5 : apply toffoli [2,0,1]"
-  draw apply_example5
-
 -------------------------------------- Example using controlled -----------------------------------
 
 -- Compute the controlled version of a unitary circuit
@@ -209,21 +208,15 @@ drawParamExamples = do
 -- Compute the depth of a circuit 
 
 
-depthExample1 : Unitary 3
-depthExample1 = CNOT 0 1 $ CNOT 2 1 $ H 1 $ CNOT 0 2 IdGate 
-
 depthExample2 : Unitary 3
 depthExample2 = H 2 $ H 1 $ H 0 $ H 1 IdGate
 
 depthExample3 : Unitary 3
-depthExample3 = CNOT 1 2 $ CNOT 0 2 $ CNOT 0 1 $ H 1 $ P pi 1 $ H 1 IdGate
+depthExample3 = CNOT 1 2 $ CNOT 2 0 $ CNOT 0 1 $ H 1 $ P pi 1 $ H 1 IdGate
 
 drawDepthExamples : IO ()
 drawDepthExamples = do
   putStrLn "Examples of depth computation"
-  putStrLn "The depth of the following circuit"
-  draw depthExample1
-  putStrLn  ("is " ++ show (depth depthExample1))
   putStrLn "\n\nThe depth of the following circuit"
   draw depthExample2
   putStrLn $ "is " ++ show (depth depthExample2)
@@ -234,46 +227,49 @@ drawDepthExamples = do
 
 ----------------------------------- Examples of quantum operations --------------------------------
 
-
 ||| Sequencing quantum operations using run
 ||| 
-quantum_operation4 : UnitaryOp t => QuantumOp t => QStateT (t 0) (t (3)) (LVect 3 Qubit)
+quantum_operation4 : UnitaryOp t => QuantumOp t => QStateT (t 0) (t 0) (Vect 3 Bool)
 quantum_operation4 = do
       [q1,q2] <- newQubits {t=t} 2                      --create 2 new qubits q1 and q2
-      [q1,q2] <- applyUnitaryQ [q1,q2] (applyUnitary [q1,q2] toBellBasis)       --apply the toBellBasis unitary circuit to q1 and q2
-      q3 <- newQubit                                    --create 1 new qubit q3
-      [q1,q3,q2] <- applyUnitaryQ [q1,q3,q2] (applyUnitary [q1,q3,q2] toffoli)     --apply toffoli gate on q1, q3 and q2
-      [b2] <- measure [q2]                              --measure q2
-      (q3 # q1) <- applyUnitaryQ [q3,q1] (applyCNOT q3 q1)                     --apply CNOT on q3 and q1
-      [b1,b3] <- measure [q1,q3]                        --measure q1 and q3
+      [q1,q2] <- applyUnitaryQ (toBellBasisNew [q1,q2])       --apply the toBellBasis unitary circuit to q1 and q2
+      q3 <- newQubit {t = t}                                     --create 1 new qubit q3
+      [q1,q3,q2] <- applyUnitaryQ (applyUnitary [q1,q3,q2] toffoli)     --apply toffoli gate on q1, q3 and q2
+      [b2] <- measureQ {t = t} [q2]                              --measure q2
+      [q3,q1] <- applyUnitaryQ (applyCNOT q3 q1)                     --apply CNOT on q3 and q1
+      [b1,b3] <- measureQ {t = t} [q1,q3]                        --measure q1 and q3
       pure [b1,b2,b3]                                   --return the results
-      
-{-}
-drawQuantumOp : IO ()
+  
+runQuantumOp4 : UnitaryOp t => QuantumOp t => IO (Vect 3 Bool)  
+runQuantumOp4 = runQ {t=t} (do
+          bs <- quantum_operation4 {t = t}
+          pure bs)
+
+testQuantumOp4 : IO (Vect 3 Bool) 
+testQuantumOp4 = do
+      bs <- runQuantumOp4 { t = SimulatedOp }
+      pure bs         
+
+drawQuantumOp : IO () 
 drawQuantumOp = do
-  [b1,b2,b3] <- quantum_operation4 {t = SimulatedOp}
-  putStrLn "\n\nExecuting an example of quantum operations : sequencing quantum operations using run"
-  putStrLn "Create 2 qubits q1 and q2"
-  putStrLn "Apply `toBellBasis` circuit on q1 and q2"
-  putStrLn "Create one new qubit q3"
-  putStrLn "Apply the toffoli gate on q1,q3 and q2"
-  putStrLn $ "Measure q2 : result is " ++ show b2
-  putStrLn "Apply CNOT on q3 and q1"
-  putStrLn $ "Measure q1 and q3 : results are " ++ show b1 ++ " and " ++ show b3
--}
+      [b1,b2,b3] <- testQuantumOp4
+      putStrLn "\n\nExecuting an example of quantum operations : sequencing quantum operations using run"
+      putStrLn "Create 2 qubits q1 and q2"
+      putStrLn "Apply `toBellBasis` circuit on q1 and q2"
+      putStrLn "Create one new qubit q3"
+      putStrLn "Apply the toffoli gate on q1,q3 and q2"
+      putStrLn $ "Measure q2 : result is " ++ show b2
+      putStrLn $ "Measure q1 and q3 : results are " ++ show b1 ++ " and " ++ show b3
+
 ------------------------------------ Draw all example circuits ------------------------------------
 
 export
 drawExamples : IO ()
 drawExamples = do
-  drawToBellBasis
-  drawConstructorsExample
   drawComposeExamples
   drawTensorExamples
   drawToBellBasis2
   drawAdjointExamples
   exampleComposeTensor1
-  drawApplyExamples
   drawParamExamples
   drawDepthExamples
-  drawQuantumOp

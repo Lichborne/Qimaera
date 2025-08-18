@@ -15,6 +15,7 @@ import QuantumOp
 import RandomUtilities
 import UnitaryOp
 import UStateT
+import Qubit
 
 %default total
 
@@ -28,6 +29,10 @@ import UStateT
 ||| beta -- the rotation angle parameter
 mixingUnitary : (n : Nat) -> (beta : Double) -> Unitary n
 mixingUnitary n beta = tensorn n (RxGate beta)
+
+mixingUnitaryAbs : UnitaryOp t => (n : Nat) -> (beta : Double) -> (1_ : LVect n Qubit) -> UStateT (t n) (t n) (LVect n Qubit)
+mixingUnitaryAbs n beta qs = applyUnitary qs (tensorn n (RxGate beta))
+
 
 {-} Helper function for costUnitary
 ||| m              -- number of vertices of the input subgraph
@@ -55,11 +60,12 @@ costUnitary' {n = S k} gamma (True  :: xs) currentUnitary =
 costUnitaryOp' : UnitaryOp t => {i:Nat} -> {n : Nat} -> {m : Nat} -> {auto prf : LT n m} -> 
     (gamma : Double) -> (edges : Vect n Bool) -> (1 _ : LVect m Qubit) -> UStateT (t i) (t i) (LVect m Qubit)
 costUnitaryOp' _ [] lvect = pure lvect
-costUnitaryOp' g (False :: bs) lvect = costUnitaryOp' g bs lvect
+costUnitaryOp' {i = i} {n = (S k)} {m = m} {prf} g (False :: bs) lvect = 
+  costUnitaryOp' {prf = lemmaLTESuccLTE (S k) m prf} g bs lvect -- idris always found this until now...
 costUnitaryOp' {i = i} {n = (S k)} {m = m} {prf} g (True :: bs) qs = do
       first <- UnitaryOp.applyUnitary qs (P g (S k) (CX (S k) m))
       second <- UnitaryOp.applyUnitary first (CX (S k) m)
-      rest <- costUnitaryOp' g bs second
+      rest <- costUnitaryOp' {prf = lemmaLTESuccLTE (S k) m prf} g bs second 
       pure rest 
 {-
 ||| The unitary operator induced by the cost hamiltonian.
@@ -169,17 +175,17 @@ classicalOptimisation g ys = do
 ||| k      -- number of times we sample (the number of times we execute QAOA_p)
 ||| graph  -- input graph of the problem
 ||| output -- all observed cuts and all rotation angles from all the runs of QAOA
-QAOA' : UnitaryOp r => QuantumOp t =>
+QAOA' : UnitaryOp t => QuantumOp t =>
         {n : Nat} ->
         (k : Nat) -> (p : Nat) -> (graph : Graph n) ->
         IO (Vect k (Vect p Double, Vect p Double, Cut n))
 QAOA' 0 p graph = pure []
 QAOA' (S k) p graph = do
-  previous_info <- QAOA' {r} {t} k p graph 
+  previous_info <- QAOA' {t=t}  k p graph 
   (betas, gammas) <- classicalOptimisation graph previous_info
-  cut <- run (do
-              qs <- newQubits {t} n
-              us <- applyUnitary (QAOA_UnitaryOp {t = r} betas gammas graph qs)
+  cut <- runQ (do
+              qs <- newQubits {t = t} n
+              us <- applyUnitaryQ (QAOA_UnitaryOp {t = t} betas gammas graph qs)
               measureAll us
               )
   pure $ (betas, gammas, cut) :: previous_info
@@ -203,13 +209,20 @@ QAOA k p graph = do
   let (cut,size) = bestCut graph cuts
   pure cut
 -}
-
-QAOA : UnitaryOp r => QuantumOp t =>
+public export
+QAOA : UnitaryOp t => QuantumOp t =>
        {n : Nat} ->
        (k : Nat) -> (p : Nat) -> Graph n ->
        IO (Cut n)
 QAOA k p graph = do
-  res <- QAOA' {r} {t} k p graph
+  res <- QAOA' {t=t} k p graph
   let cuts = map (\(_, _, cut) => cut) res
   let (cut,size) = bestCut graph cuts
   pure cut
+
+
+||| Small test
+testQAOA : IO (Cut 3)
+testQAOA = (do
+  bs <- QAOA { t = SimulatedOp } 2 2 (AddVertex (AddVertex (AddVertex (Empty) []) [True]) [True,False])
+  pure bs)

@@ -18,6 +18,7 @@ import Data.Maybe
 import QStateT
 import Data.Linear.Notation
 import Data.Linear.Interface
+import Qubit
 
 
 ||| The UnitaryOpBad interface is used to abstract over the representation of a
@@ -52,13 +53,14 @@ interface UnitaryOp (0 t : Nat -> Type) where
   
   applyControlledU : {i:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (t n) (t n) (LVect i Qubit))
                                -> UStateT (t n) (t n) (LVect (S i) Qubit) 
+
   ||| sequence to the end
   run :  {i : Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LVect i Qubit) ) -> (LPair (t n) (LVect i Qubit))
 
-
+%hint
 export
-single : LVect 1 Qubit -> Qubit
-single [q] = q
+singleQubit : (1 _ : LVect 1 Qubit)-> Qubit
+singleQubit [q] = q
 
 public export
 data SimulatedOp : Nat -> Type where
@@ -248,8 +250,15 @@ applyControlledAbsSimulated : {n : Nat} -> {i : Nat} -> (1_ : Qubit) ->
   (1_ : (UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit) )) -> UStateT (SimulatedOp n) (SimulatedOp n) (LVect (S i) Qubit)
 applyControlledAbsSimulated control q = MkUST (applyControlledAbs' control q)
 
-
 {-}
+applyUnitary' : {n : Nat} -> {i : Nat} -> {k : Nat} -> {r : Nat} -> (1 _ : LVect k Qubit) -> (1 _ : LVect r Qubit) 
+                -> (1 _ : SimulatedOp n) -> (1 _ : SimulatedOp p) -> (LPair (SimulatedOp (n+p)) (LVect (k+r) Qubit))
+
+applyTensorSim : {n : Nat} -> {p : Nat} -> {k : Nat} -> {r : Nat} 
+              -> (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect k Qubit))-> (1_ : UStateT (SimulatedOp p) (SimulatedOp p) (LVect rQubit)) 
+              -> (1_ : UStateT (SimulatedOp (n+p)) (SimulatedOp (n+p)) (LVect (k+r) Qubit))
+applyTensorSim (MkUST f) (MkUst g)
+              
 public export
 data SimulatedOp : Nat -> Type where
   MkSimulatedOp : {n : Nat} -> Matrix (power 2 n) 1 -> (1_: Vect n Qubit) -> Nat -> SimulatedOp n

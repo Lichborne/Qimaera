@@ -5,6 +5,7 @@ import Data.Nat
 import System.File
 import Injection
 import Lemmas
+import Qubit
 
 infixr 9 .
 infixr 10 #
@@ -467,7 +468,6 @@ exportToQiskit str g =
         case a of
              Left e1 => putStrLn "Error when writing file"
              Right io1 => pure ()
-
 
 
 

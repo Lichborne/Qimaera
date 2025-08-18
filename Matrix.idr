@@ -4,6 +4,7 @@ import Data.Vect
 import Data.Nat
 import Complex
 import Lemmas
+import Qubit
 
 %default total
 

@@ -11,79 +11,26 @@ import public Data.Linear.Notation
 import public Data.Linear.Interface
 import System
 import Data.Linear
+import Qubit
 
 
 %default total
 
-public export
-data Qubit : Type where
-  MkQubit : (n : Nat) -> Qubit
+%search_timeout 1000
 
-
-Consumable Qubit where
-  consume (MkQubit Z) = ()
-  consume (MkQubit (S k)) = ()
-
-Consumable Nat where
-  consume (Z) = ()
-  consume ((S k)) = ()
-
-public export 
-consLinQ : (Qubit) -> (1_: Vect n Qubit) -> Vect (S n) Qubit
-consLinQ (MkQubit Z) [] = [(MkQubit Z)]
-consLinQ (MkQubit Z) (x :: xs) = (MkQubit Z) :: x :: xs
-consLinQ ((MkQubit (S k))) [] = [MkQubit (S k)]
-consLinQ (MkQubit (S k)) (x :: xs) = (MkQubit (S k)) :: x :: xs  
-
-
-public export
-toVectQ : (1 _ : LVect n Qubit) -> (Vect n Qubit)
-toVectQ [] = []
-toVectQ ((MkQubit k):: xs) = (MkQubit k) `consLinQ` (toVectQ xs)
-
-Consumable (Vect i elem) where 
-    consume [] = ()
-    consume (x :: xs) = ()
-
-discardq : (1_ : LVect n Qubit) -> ()
-discardq lvect = consume (toVectQ lvect)
-
-public export
-unrestrictVect : (1 _ : Vect n Qubit) -> (Vect n Qubit)
-unrestrictVect [] = Data.Vect.Nil
-unrestrictVect ((MkQubit k) :: xs) = Data.Vect.(::) (MkQubit k) (unrestrictVect xs)
-
----public export
----uVecAux : (1 _ : Vect n Qubit) -> ((!*) (Vect n Qubit))
----uVecAux [] = MkBang []
----uVecAux (x :: xs) = MkBang (x::xs)
-
-public export
-unrestrictVec : (1 _ : Vect n Qubit) -> ((Vect n Qubit))
-unrestrictVec [] = unrestricted $ MkBang []
-unrestrictVec (x :: xs) =  (unrestricted $ MkBang (x)) :: (unrestricted $ MkBang (unrestrictVec xs))
-
-public export
-toVectUnr : (1 _ : LVect n Qubit) -> ((Vect n Qubit))
-toVectUnr any = unrestrictVec (toVectQ any)
-
-public export
-toVectQNonLin : (1_ : Vect n Qubit) -> Pair (Vect n Qubit) (Vect n Qubit)
-toVectQNonLin [] = MkPair [] []
-toVectQNonLin ((MkQubit k):: xs) = let rest = (toVectQNonLin xs) in MkPair ((MkQubit k) :: (fst rest)) ((MkQubit k) :: (snd rest))
-{-}
-public export
-sndtoVect : (1_ : Pair (Vect n Qubit) (Vect n Qubit)) -> Vect n Qubit
-sndtoVect pair = snd pair
--}
 export
 lemmaplusOneRight : (n : Nat) -> n + 1 = S n
 lemmaplusOneRight n = rewrite plusCommutative n 1 in Refl
 
 export
 %hint
-lemmaplusOneRightH : {n : Nat} -> n + 1 = S n
-lemmaplusOneRightH {n = n} = rewrite plusCommutative n 1 in Refl
+lemmaplusOneRightHC : {n : Nat} -> n + 1 = S n
+lemmaplusOneRightHC {n = n} = rewrite plusCommutative n 1 in Refl
+
+export
+%hint
+lemmaplusOneRightH : {n : Nat} -> 1 + n = S n
+lemmaplusOneRightH {n = n} = Refl
 
 export
 %hint
@@ -91,6 +38,7 @@ lemmaplusOneRightHSym : {n : Nat} ->  S n = n + 1
 lemmaplusOneRightHSym {n = n} = sym $ rewrite plusCommutative n 1 in Refl
 
 export
+%hint
 lemmaPlusSRight : (n : Nat) -> (k : Nat) -> plus n (S k) = S (plus n k)
 lemmaPlusSRight Z     k = Refl
 lemmaPlusSRight (S p) k = rewrite lemmaPlusSRight p k in Refl
@@ -109,6 +57,9 @@ eitherLTSucc (Right b) = Right (fromLteSucc b)
 eitherLTtoSucc : Either (LT a b) (LT b a) -> Either (LT (S a) (S b)) (LT (S b) (S a))
 eitherLTtoSucc (Left a) = Left (LTESucc a)
 eitherLTtoSucc (Right b) = Right (LTESucc b)
+
+eqVoidSucc :{a,b:Nat} -> ((S a) = (S b) -> Void) -> ((a = b) -> Void)
+eqVoidSucc ltToVoid Refl = ltToVoid Refl
 
 --LEMMAS ABOUT &&
 
@@ -204,11 +155,18 @@ lemmakLTSk : (k : Nat) -> LT (S k) (S (k+1))
 lemmakLTSk k = rewrite lemmaplusOneRight k in (LTESucc $ lemmaLTSucc k)
 
 export 
-%hint
 lemmaLTSuccLT : (k : Nat) -> (n : Nat) -> LT (S k) n -> LT k n
 lemmaLTSuccLT k 0 prf impossible
 lemmaLTSuccLT 0 n prf = fromLteSucc $ lteSuccRight prf
 lemmaLTSuccLT (S k) (S n) prf = lteSuccLeft prf
+
+
+||| Slows down compilation significantly if made into a hint!
+export 
+lemmaLTSuccLTH : {k : Nat} -> {n : Nat} -> LT (S k) n -> LT k n
+lemmaLTSuccLTH {k = k} {n = 0} prf impossible
+lemmaLTSuccLTH {k = 0} {n = n} prf = fromLteSucc $ lteSuccRight prf
+lemmaLTSuccLTH {k = (S k)} {n = (S n)} prf = lteSuccLeft prf
 
 export 
 %hint
@@ -217,9 +175,8 @@ lemmaLTESuccLT k 0 prf impossible
 lemmaLTESuccLT 0 n prf = prf
 lemmaLTESuccLT (S k) (S j) prf = prf
 
-
+||| Slows down compilation significantly if made into a hint!
 export 
-%hint
 lemmaLTESuccLTE : (k : Nat) -> (n : Nat) -> LTE (S k) n -> LTE k n
 lemmaLTESuccLTE k 0 prf impossible
 lemmaLTESuccLTE 0 _ _ = LTEZero
@@ -241,10 +198,49 @@ export
 sPlusEq : {k:Nat} -> {m:Nat} -> S (plus k m) = plus k (S m)
 sPlusEq {k=k} {m=m} = rewrite plusSuccRightSucc k m in Refl
 
---LEMMAS ABOUT <, >, =, /=, <=, >= : TRANSITIVITY
+export 
+%hint
+lteSAssoc : {k:Nat} -> LT (S (S k)) (S k + 1) -> LT (S (S k)) (S (k + 1))
+lteSAssoc lte = %search
+
+export
+%hint
+succkplus : {k:Nat} -> (S (k + 1)) = (S k + 1)
+succkplus = %search
 
 export 
 %hint
+lteSS : {k:Nat} -> LTE (S (S k)) (S k + 1)
+lteSS {k} = rewrite succkplus {k = k} in lemmakLTSk k
+
+||| Succ is injective - library function
+export
+succInjective : {left, right : Nat} -> S left = S right -> left = right
+succInjective Refl = Refl
+
+--Small helper lemmas to make the actual functions look less messy--
+ltz1: LT 0 1
+ltz1 = lteRefl 1
+
+ltzs: (k:Nat) -> LT Z (S k) 
+ltzs 0 = lteRefl 1  
+ltzs (S k) = lteSuccRight $ ltzs k
+
+ltzss: (k:Nat) -> LT Z (S (S k)) 
+ltzss 0 = LTESucc LTEZero 
+ltzss (S k) = lteSuccRight $ ltzss k
+
+lt1ss: (k:Nat) -> LT 1 (S (S k))
+lt1ss Z = lteRefl 2
+lt1ss (S k) = lteSuccRight $ lt1ss k
+
+--------------------------------------------------------------------
+
+
+--LEMMAS ABOUT <, >, =, /=, <=, >= : TRANSITIVITY
+
+||| Do not turn into a hint, it will make compilation far too long
+export 
 lemmaTransLTESLTE : (i : Nat) -> (n : Nat) -> (p : Nat) -> LTE i n -> LTE (S n) p -> LTE (S i) p
 lemmaTransLTESLTE 0 0 (S k) _ _ = lemma1LTESucc k
 lemmaTransLTESLTE i n k prf1 prf2 = lteTransitive (LTESucc prf1) prf2
@@ -263,7 +259,7 @@ lemmaTransitivity : (i : Nat) -> (n : Nat) -> (p : Nat) -> LT i n -> LT n p -> L
 lemmaTransitivity i n k prf1 prf2 = lteTransitive prf1 (lteSuccLeft prf2)
 
 
---LEMMAS USED BY THE APPLY FUNCTION
+--LEMMAS USED BY THE APPLY FUNCTION (with Either)
 export
 indexInjectiveVect : (j : Nat) -> (n : Nat) -> (v : Vect i Nat) ->
                      {auto prf : IsInjectiveT n v} -> {prf1 : LT j i} ->
@@ -300,27 +296,51 @@ differentIndexInjectiveVect (S k) 0 n (x :: xs) =
 differentIndexInjectiveVect (S k) (S j) n (x :: xs) =
   differentIndexInjectiveVect k j n {prf1 = eitherLTSucc prf1} xs {prf2 = ifInjectiveThenSubInjective prf2} {prf3 = fromLteSucc prf3} {prf4 = fromLteSucc prf4}
 
+--LEMMAS USED BY THE APPLY FUNCTION (with void)
+
+export
+indexInjectiveVectDec : (j : Nat) -> (n : Nat) -> (v : Vect i Nat) ->
+                     {auto prf : IsInjectiveDec n v} -> {prf1 : LT j i} ->
+                     LT (indexLT j v) n
+indexInjectiveVectDec Z n (x :: xs) {prf} = getPrfSmaller $ getAllSmallerDec prf
+indexInjectiveVectDec (S k) n (x :: xs) {prf} = indexInjectiveVectDec k n xs {prf = ifInjectiveDecThenSubInjectiveDec prf}  
+
+export
+%hint
+implementation Uninhabited (Z = Z -> Void) where
+  uninhabited f = f Refl
+
+export
+differentDec' : (x : Nat) -> (m : Nat) -> (xs : Vect i Nat) ->
+             {prf1 : LT m i} -> {prf2 : IsDifferentDec x xs} ->
+              (x = (indexLT m xs) -> Void)
+differentDec' x 0 (y :: xs) = isDiffToPrfDec prf2
+differentDec' x (S k) (y :: xs) = differentDec' x k xs {prf1 = fromLteSucc prf1} {prf2 = ifDiffThenSubDiffDec prf2}
+
+private
+differentDec'' : (x : Nat) -> (m : Nat) -> (xs : Vect i Nat) ->
+             {prf1 : LT m i} -> {prf2 : IsDifferentDec x xs} ->
+             ( (indexLT m xs) = x -> Void) 
+differentDec'' x 0 (y :: xs) =  eqSymVoid (isDiffToPrfDec (prf2))
+differentDec'' x (S k) (y :: xs) = differentDec'' x k xs {prf1 = fromLteSucc prf1} {prf2 = ifDiffThenSubDiffDec prf2}  
+
+export
+differentIndexInjectiveVectDec : {i : Nat} -> (c : Nat) -> (t : Nat) -> (n : Nat) -> {prf1 : c = t -> Void } ->
+                              (v : Vect i Nat) -> {prf2 : IsInjectiveDec n v} ->
+                              {prf3 : LT c i } -> {prf4 : LT t i } ->
+                              ((indexLT c v)  = (indexLT t v) -> Void)
+differentIndexInjectiveVectDec 0 0 _ _ = absurd prf1
+differentIndexInjectiveVectDec 0 (S m) n (x :: xs) =
+      differentDec' x m xs {prf1 = fromLteSucc prf4} {prf2 = allDiffDecToPrf$ getAllDifferentDec prf2}
+differentIndexInjectiveVectDec (S k) 0 n (x :: xs) =
+      differentDec'' x k xs {prf1 = fromLteSucc prf3} {prf2 = allDiffDecToPrf $ getAllDifferentDec prf2}
+differentIndexInjectiveVectDec (S k) (S j) n (x :: xs) =
+  differentIndexInjectiveVectDec k j n {prf1 = eqVoidSucc prf1} xs {prf2 = ifInjectiveDecThenSubInjectiveDec prf2} {prf3 = fromLteSucc prf3} {prf4 = fromLteSucc prf4}
+
 --------------------------------------------------------------------
 --------------LEMMAS USED BY THE CONTROLLED FUNCTION ---------------
 --------------------------------------------------------------------
 
---Small helper lemmas to make the actual functions look less messy--
-ltz1: LT 0 1
-ltz1 = lteRefl 1
-
-ltzs: (k:Nat) -> LT Z (S k) 
-ltzs 0 = lteRefl 1  
-ltzs (S k) = lteSuccRight $ ltzs k
-
-ltzss: (k:Nat) -> LT Z (S (S k)) 
-ltzss 0 = LTESucc LTEZero 
-ltzss (S k) = lteSuccRight $ ltzss k
-
-lt1ss: (k:Nat) -> LT 1 (S (S k))
-lt1ss Z = lteRefl 2
-lt1ss (S k) = lteSuccRight $ lt1ss k
-
---------------------------------------------------------------------
 
 export
 lemmaControlledInj : (n : Nat) -> (j : Nat) -> {auto prf : LT j n} -> IsInjectiveT (S n) [0, S j]
@@ -369,30 +389,30 @@ lemmaControlledInj2 (S k) (S j) (S i) = IsInjectiveSucc
     (AllDiffSucc (IsDiffSucc (eitherLTtoSucc prf3) (IsDiffNil)) 
       (AllDiffSucc (IsDiffNil) (AllDiffNil))))
   (ASSucc (ltzss k) (ASSucc (LTESucc prf1) (ASSucc (LTESucc prf2) (ASNil))))
-                      
+                    
 export 
-%hint
 lemmaIsDiffGen : (m:Nat) -> (v: Vect n Nat) -> IsDifferentT m v
 lemmaIsDiffGen m [] = IsDiffNil
 lemmaIsDiffGen m (x::xs) = case isLT m x of
-   Yes prfLeft => IsDiffSucc (Left prfLeft) (lemmaIsDiffGen m xs)
    No prfNo1 => case isLT x m of
-    Yes prfRight =>  IsDiffSucc (Right prfRight) (lemmaIsDiffGen m xs)
-    No prfNo2 => assert_total $ idris_crash "There exists no automatic proof that the Vector is Injective"
+     No prfNo2 => assert_total $ idris_crash "There exists no automatic proof that the Vector is Injective"
+     Yes prfRight =>  IsDiffSucc (Right prfRight) (lemmaIsDiffGen m xs)
+   Yes prfLeft => IsDiffSucc (Left prfLeft) (lemmaIsDiffGen m xs)
 
 export 
-%hint    
+%hint
 lemmaAllDiffGen : {v: Vect n Nat} -> AllDifferentT v
 lemmaAllDiffGen {v = []} = AllDiffNil
 lemmaAllDiffGen {v = (x::xs)} = AllDiffSucc (lemmaIsDiffGen x xs) (lemmaAllDiffGen {v = xs})
 
 export 
-%hint 
+%hint
 lemmaAllSmallGen : (m:Nat) -> (v: Vect n Nat) -> AllSmallerT v m
 lemmaAllSmallGen {m} {v = []} = ASNil
 lemmaAllSmallGen {m} {v = (x::xs)} = case isLT x m of
-  Yes prfLT => ASSucc prfLT (lemmaAllSmallGen {m = m} {v = xs})
   No prfNo1 =>assert_total $ idris_crash "There exists no automatic proof that the Vector is Injective"
+  Yes prfLT => ASSucc prfLT (lemmaAllSmallGen {m = m} {v = xs})
+ 
 
 export 
 %hint 
@@ -404,14 +424,21 @@ export
 lemmaIsInjectiveTk : {m: Nat -> Nat} -> {v: Nat-> Vect n Nat} -> ({k: Nat} -> IsInjectiveT (m k) (v k))
 lemmaIsInjectiveTk {m} {v} = IsInjectiveSucc (lemmaAllDiffGen {v = v k}) (lemmaAllSmallGen {m = m k} {v = v k})
 
+export
+distributeDupedLVect : (1 _ : LVect i Qubit) -> LPair (LVect i Qubit) (LVect i Qubit) 
+distributeDupedLVect [] = [] # []
+distributeDupedLVect (MkQubit k :: xs) = 
+  let (q # v) = distributeDupedLVect xs in
+  (MkQubit k :: q ) # (MkQubit k :: v)
+  
 {-
 export
-%hint
+
 lemmaSuccInjg: {k:Nat} -> IsInjectiveT (S (S k)) [S k, 0]
 lemmaSuccInjg {k} = lemmaIsInjectiveTk {m = \l => S (S k)} {v = \d => [ S d, 0]}
 
 export
-%hint
+
 lemmaSuccInj: {k:Nat} -> IsInjectiveT (S (S k)) [S k, 0]
 lemmaSuccInj {k} = IsInjectiveSucc 
   (AllDiffSucc (IsDiffSucc (Right (ltzs k)) (IsDiffNil)) (AllDiffSucc (IsDiffNil) (AllDiffNil)))
@@ -419,11 +446,11 @@ lemmaSuccInj {k} = IsInjectiveSucc
 
 
 export
-%hint
+
 lemmaSuccInjPlus: {k:Nat} -> IsInjectiveT (S (k + 1)) [S k, 0]  
 lemmaSuccInjPlus {k} = rewrite sym $ Data.Nat.plusOneSucc k in (rewrite plusCommutative k 1 in lemmaSuccInjg)-}
 
---LEMMAS USED BY THE TENSOR FUNCTION
+--LEMMAS USED BY THE TENSOR FUNCTION (with Either)
 export
 lemmaDiffSuccPlusE : (k : Nat) -> (p : Nat) -> Either (LT k (S (p + k))) (LT (S (p + k)) k)
 lemmaDiffSuccPlusE 0 p = rewrite plusZeroRightNeutral p in Left (ltzs p)
@@ -456,3 +483,107 @@ allSmallerPlus n p v prf = ifAllSmallThenPlusSmall p prf
 export 
 isInjectiveRangeVect : (startIndex : Nat) -> (length : Nat) -> IsInjectiveT (startIndex+length) (rangeVect startIndex length)
 isInjectiveRangeVect i length = IsInjectiveSucc (allDiffRangeVect i length) (allSmallerRangeVect i length)
+
+--LEMMAS USED BY THE TENSOR FUNCTION (with Void)
+
+-- derive contra from k = S (j + k) 
+impossibleEq : (j, k : Nat) -> k = S (j + k) -> Void
+impossibleEq j  Z     Refl impossible                              -- 0 ≠ S _
+impossibleEq j (S k') eq =
+  let
+    p1= rewrite plusSuccRightSucc j k' in eq
+    p2 = succInjective p1
+  in
+    impossibleEq j k' p2
+
+||| Giving the implementation outside did not seem to work, so I pulled it inside
+export
+lemmaDiffSuccPlusEDec : (k : Nat) -> (p : Nat) -> (k  = (S (p + k)) -> Void)
+lemmaDiffSuccPlusEDec 0 p eq = absurd eq
+lemmaDiffSuccPlusEDec (S k) j eq = let 
+      implementation Uninhabited ((S k = S (j + S k))) where
+          uninhabited eqn = impossibleEq j k (succInjective (rewrite plusSuccRightSucc j k in eqn))
+      in
+        absurd (uninhabited (eq))
+ 
+export
+isDiffRangeVectDec : (k : Nat) -> (length : Nat) -> (p : Nat) -> IsDifferentDec k (rangeVect (S (p + k)) length)
+isDiffRangeVectDec k 0 _ = IsDiffNilDec
+isDiffRangeVectDec k (S j) p = IsDiffSuccDec (lemmaDiffSuccPlusEDec k p) (isDiffRangeVectDec k j (S p))
+
+export
+allDiffRangeVectDec : (startIndex : Nat) -> (length : Nat) -> AllDifferentDec (rangeVect startIndex length)
+allDiffRangeVectDec startIndex 0 = AllDiffNilDec
+allDiffRangeVectDec startIndex (S k) = 
+  let p1 = isDiffRangeVectDec startIndex k 0
+  in AllDiffSuccDec p1 (allDiffRangeVectDec (S startIndex) k)
+
+export
+allSmallerRangeVectDec : (startIndex : Nat) -> (length : Nat) -> AllSmallerT (rangeVect startIndex length) (startIndex + length)
+allSmallerRangeVectDec startIndex 0 = ASNil
+allSmallerRangeVectDec startIndex (S k) = 
+  rewrite sym $ plusSuccRightSucc startIndex k in 
+    ASSucc (lemmaLTSuccPlus startIndex k) (allSmallerRangeVectDec (S startIndex) k) 
+
+export 
+isInjectiveRangeVectDec : (startIndex : Nat) -> (length : Nat) -> IsInjectiveDec (startIndex+length) (rangeVect startIndex length)
+isInjectiveRangeVectDec i length = IsInjectiveSuccDec (allDiffRangeVectDec i length) (allSmallerRangeVectDec i length)
+{-}
+export
+
+lemmaIsDiffGenDec : (m:Nat) -> (v: Vect n Nat) -> IsDifferentDec m v
+lemmaIsDiffGenDec m [] = IsDiffNilDec
+lemmaIsDiffGenDec m (x::xs) = case decEq m x of
+  No prfNo => IsDiffSuccDec (prfNo ) (lemmaIsDiffGenDec m xs)
+  Yes prfLeft => assert_total $ idris_crash "There exists no automatic proof that the Vector is Injective"
+
+export 
+    
+lemmaAllDiffGenDec : {v: Vect n Nat} -> AllDifferentDec v
+lemmaAllDiffGenDec {v = []} = AllDiffNilDec
+lemmaAllDiffGenDec {v = (x::xs)} = AllDiffSuccDec (lemmaIsDiffGenDec x xs) (lemmaAllDiffGenDec {v = xs})
+
+export 
+ 
+lemmaAllSmallGenDec : (m:Nat) -> (v: Vect n Nat) -> AllSmallerT v m
+lemmaAllSmallGenDec {m} {v = []} = ASNil
+lemmaAllSmallGenDec {m} {v = (x::xs)} = case isLT x m of
+  No prfNo1 =>assert_total $ idris_crash "There exists no automatic proof that the Vector is Injective"
+  Yes prfLT => ASSucc prfLT (lemmaAllSmallGenDec {m = m} {v = xs})
+
+export 
+ 
+lemmaIsInjectiveDec : {m:Nat} -> {v: Vect n Nat} -> IsInjectiveDec m v
+lemmaIsInjectiveDec {m} {v} = IsInjectiveSuccDec (lemmaAllDiffGenDec {v = v}) (lemmaAllSmallGenDec {m = m} {v = v})
+
+export 
+ 
+lemmaIsInjectiveDecT : {m: Nat -> Nat} -> {v: Nat-> Vect n Nat} -> ({k: Nat} -> IsInjectiveDec (m k) (v k))
+lemmaIsInjectiveDecT {m} {v} = IsInjectiveSuccDec (lemmaAllDiffGenDec {v = v k}) (lemmaAllSmallGenDec {m = m k} {v = v k})
+
+export
+
+implementation {j,k :Nat} -> Uninhabited ((S k = S (j + S k))) where
+        uninhabited eqn = impossibleEq j k (succInjective (rewrite plusSuccRightSucc j k in eqn))
+
+export
+
+implementation Uninhabited (S k = k) where
+        uninhabited Refl impossible
+
+export
+
+implementation Uninhabited (k = S k) where
+        uninhabited Refl impossible
+                
+export
+
+voidGenLeft : {k : Nat} -> S k = k -> Void
+voidGenLeft eq = absurd eq
+
+
+export
+
+voidGenRight : {k : Nat} -> k = S k -> Void
+voidGenRight eq = absurd eq
+-}

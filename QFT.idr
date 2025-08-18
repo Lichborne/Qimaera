@@ -4,13 +4,13 @@ import Data.Nat
 import Data.Vect
 import Decidable.Equality
 import Injection
-import Lemmas
 import QuantumOp
 import LinearTypes
 import UnitaryOp
 import UStateT
 import QStateT
 import UnitaryLinear
+import Qubit
 --import UnitaryOpTracked
 --import QuantumOpTracked
 
@@ -57,8 +57,7 @@ qftU {n} {i = S k} (q::qs) = do
 
 ||| Full, partially abstract QFT
 qftQ : UnitaryOp t => QuantumOp t => (i : Nat) -> (n: Nat) -> (1 _ : LVect i Qubit) -> QStateT (t n) (t n) (LVect i Qubit)
-qftQ i n qs =  let (qs1 # qs2) = distributeDupedLVect qs in
-  applyUnitaryQ {t=t} qs1 (qftU {t=t} {i = i} {n = n} (qs2))
+qftQ i n qs = applyUnitaryQ {t=t} (qftU {t=t} {i = i} {n = n} (qs))
 
 ||| Builds the *abstract* rotation operator for the QFT inside UnitaryOp
 rotate' : UnitaryOp t => {n:Nat} -> {i:Nat} -> (m:Nat) -> (1_ : Qubit) -> (1 _ : LVect i Qubit) -> UStateT (t (n)) (t (n)) (LVect (S i) Qubit)
@@ -69,7 +68,7 @@ rotate' {n} {i = (S k)} m q (p::ps) = do
         pure (q'':: p':: ps')
 
 ||| Builds the *abstract* operator for the QFT inside UnitaryOp using rotation
-qftU' :  UnitaryOp t => {n:Nat} -> {i:Nat} -> (1 _ : LVect i Qubit)-> UStateT (t (n)) (t (n)) (LVect (i) Qubit)
+qftU' :  UnitaryOp t => {n:Nat} -> {i:Nat} -> (1 _ : LVect i Qubit) -> UStateT (t (n)) (t (n)) (LVect (i) Qubit)
 qftU' [] = pure []
 qftU' {n} {i = S k} (q::qs) = do
     (q' :: Nil ) <- applyH q
@@ -79,8 +78,7 @@ qftU' {n} {i = S k} (q::qs) = do
 
 ||| Full, fully abstract QFT
 qftQ' : UnitaryOp t => QuantumOp t => (i : Nat) -> (n: Nat) -> (1 _ : LVect i Qubit) -> QStateT (t n) (t n) (LVect i Qubit)
-qftQ' i n qs = let (qs1 # qs2) = distributeDupedLVect qs in
-  applyUnitaryQ {t=t} qs1 (qftU' {t=t} {i = i} {n = n} (qs2))
+qftQ' i n qs = applyUnitaryQ {t=t} (qftU' {t=t} {i = i} {n = n} (qs))
 
 ||| Run with 3 qubits (any more takes too long on a normal computer)
 runQFT3 : UnitaryOp t => QuantumOp t => IO (Vect 3 Bool)
@@ -90,50 +88,12 @@ runQFT3 = runQ {t=t} (do
     measureAll qfts
     )
 
-||| Test with 3 qubits *any more takes too long on a normal computer) 
+||| Test with 3 qubits (any more takes too long on a normal computer) 
 testQFT3 : IO (Vect 3 Bool)
 testQFT3 = (do
   bs <- runQFT3 { t = SimulatedOp }
   pure bs)
 
-||| Pattern for recursively building large unitaries from a base unitary and a function for getting a parametrized unitary from some k (like rotate)
-patternRec : UnitaryOp t => (n : Nat) -> (m: Nat) -> (unitary : (k:Nat) -> Unitary k) -> (baseCaseUnitary : Unitary 1) -> 
-  (1 _ : LVect n Qubit) -> UStateT (t m) (t m) (LVect n Qubit)
-patternRec 0 m unitary baseCaseUnitary [] = pure LinearTypes.Nil
-patternRec 1 m unitary baseCaseUnitary [w] = do
-          wh <- applyUnitary [w] baseCaseUnitary
-          pure $ wh
-patternRec (S k) m unitary baseCaseUnitary (q::qs) = do
-          recwires <- patternRec k m unitary baseCaseUnitary (qs)
-          app <- UnitaryOp.applyUnitary {n = m} {i = (S k)} (q::recwires) (unitary (S k))
-          pure (app) 
-
-||| Outer pattern for recursively building large unitaries from a base unitary and a function for getting a parametrized unitary from some k (like qftU)
-patternRecDouble : UnitaryOp t => (n : Nat) -> (m: Nat) -> (unitary : (k:Nat) -> Unitary k) -> (baseCaseUnitary : Unitary 1) -> 
-  (1 _ : LVect n Qubit) -> UStateT (t m) (t m) (LVect n Qubit)
-patternRecDouble 0 m unitary bCU qs = pure qs
-patternRecDouble (S k) m unitary bCU (q::qs) = do
-  l::ls <- patternRec (S k) m unitary bCU (q::qs)
-  fs <- patternRecDouble k m unitary bCU (ls) 
-  pure (l::fs)
-
-||| Pattern for using a unitary building pattern and raising it to a QuantumOP (used below)  
-patternQ : UnitaryOp t => QuantumOp t => (n : Nat) -> (m: Nat) -> (baseCaseUnitary : Unitary 1) -> (unitary : (k:Nat) -> Unitary k) -> 
-  (pattern : ( (n : Nat) -> (m: Nat) -> (unitary : (k:Nat) -> Unitary k) -> (baseCaseUnitary : Unitary 1) 
-                -> (1 _ : LVect n Qubit) -> UStateT (t m) (t m) (LVect n Qubit))) ->
-  (1 _ : LVect n Qubit) -> QStateT (t m) (t m) (LVect n Qubit)
-patternQ n m bCU u pat qs = let (qs1 # qs2) = distributeDupedLVect qs in
-  applyUnitaryQ {t=t} qs1 (pat n m u bCU qs2)
-
-||| Using a single recursive layer (like rotate) via PatternQ in QuantumOP  
-patternQSingle : UnitaryOp t => QuantumOp t=> (n : Nat) -> (m: Nat) -> (baseCaseUnitary : Unitary 1) -> (unitary : (k:Nat) -> Unitary k) -> 
-  (1 _ : LVect n Qubit) -> QStateT (t m) (t m) (LVect n Qubit)
-patternQSingle n m bCU u qs = patternQ {t = t} n m bCU u (patternRec) qs
-
-||| Using a double recursive layer (like rotate) via PatternQ in QuantumOP
-patternQDouble : UnitaryOp t => QuantumOp t => (n : Nat) -> (m: Nat) -> (baseCaseUnitary : Unitary 1) -> (unitary : (k:Nat) -> Unitary k) -> 
-  (1 _ : LVect n Qubit) -> QStateT (t m) (t m) (LVect n Qubit)
-patternQDouble n m bCU u qs = patternQ {t = t} n m bCU u (patternRecDouble) qs
 
 {-
 DEPRICATED

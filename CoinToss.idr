@@ -4,6 +4,9 @@ import Data.Vect
 import QStateT
 import QuantumOp
 import LinearTypes
+import UnitaryOp
+import Qubit
+import Lemmas
 
 ||| A fair coin toss (as an IO effect) via quantum resources.
 |||
@@ -11,12 +14,12 @@ import LinearTypes
 ||| then apply a hadamard gate to it, thereby preparing state |+>
 ||| and finally measure the qubit and return this as the result
 export
-coin : QuantumOp t => IO Bool
+coin : UnitaryOp t => QuantumOp t => IO Bool
 coin = do
-  [b] <- run (do
-           q <- newQubit {t = t}
-           q <- applyH q
-           r <- measure [q]
+  [b] <- runQ {t = t} (do
+           q <- newQubit
+           q <- applyHQ q
+           r <- measureQ q
            pure r
          )
   pure b

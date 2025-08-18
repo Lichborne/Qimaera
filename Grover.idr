@@ -13,6 +13,7 @@ import AlterningBitsOracle
 import QuantumOp
 import UStateT
 import UnitaryOp
+import Qubit
 
 %default total
 
@@ -115,15 +116,15 @@ groverOp' n oracle nbIter qs =
     fin <- UnitaryOp.applyUnitary (grvr) (tensor IdGate (hxAncilla p)) -- {n = n+p} {i = n+p}
     pure fin
 
-groverOP : UnitaryOp r => QuantumOp t => (n : Nat) -> {p : Nat} -> (oracle : Unitary (n + p)) -> (nbIter : Nat) -> IO (Vect n Bool)
+groverOP : UnitaryOp t => QuantumOp t => (n : Nat) -> {p : Nat} -> (oracle : Unitary (n + p)) -> (nbIter : Nat) -> IO (Vect n Bool)
 groverOP n oracle nbIter = do
-w <- run (do
+      w <- runQ (do
             q <- newQubits {t=t} (n + p)
-            grvrU <- applyUnitary (groverOp' {t=r} n oracle nbIter q)
+            grvrU <- applyUnitaryQ (groverOp' {t=t} n oracle nbIter q)
             v <- measureAll grvrU
             pure v
             )
-pure (take n w)
+      pure (take n w)
 
 
 

@@ -2,9 +2,9 @@ module VQE
 
 import Data.Nat
 import Data.Vect
-import Unitary
+import UnitaryLinear
+import LinearTypes
 import Control.Linear.LIO
-import Lemmas
 import QStateT
 import Injection
 import LinearTypes
@@ -12,6 +12,12 @@ import Complex
 import System.Random
 import QuantumOp
 import RandomUtilities
+import Qubit
+import Lemmas
+import UnitaryOp
+import UStateT
+
+%search_timeout 1000
 
 %default total
 
@@ -135,14 +141,11 @@ Hamiltonian n = List (Double, PauliBasis n)
 encodingUnitary : {n : Nat} -> (h : PauliBasis n) -> Unitary (S n)
 encodingUnitary [] = IdGate
 encodingUnitary {n = S k} (PauliI :: xs) = rewrite sym $ lemmaplusOneRight k in (encodingUnitary xs) # IdGate {n=1}
-encodingUnitary {n = S k} (PauliX :: xs) = 
-  let p1 = lemmakLTSk k
-  in rewrite sym $ lemmaplusOneRight k in CNOT (S k) 0 (H (S k) ((encodingUnitary xs) # IdGate {n=1}))
-encodingUnitary {n = S k} (PauliY :: xs) =
-  let p1 = lemmakLTSk k 
+encodingUnitary {n = S k} (PauliX :: xs) =  let p1 = lemmakLTSk k
+  in rewrite sym $ lemmaplusOneRight k in  CNOT (S k) 0 (H (S k) ((encodingUnitary xs) # IdGate {n=1}))
+encodingUnitary {n = S k} (PauliY :: xs) =  let p1 = lemmakLTSk k
   in rewrite sym $ lemmaplusOneRight k in CNOT (S k) 0 (H (S k) (S (S k) ((encodingUnitary xs) # IdGate {n=1})))
-encodingUnitary {n = S k} (PauliZ :: xs) = 
-  let p1 = lemmakLTSk k
+encodingUnitary {n = S k} (PauliZ :: xs) = let p1 = lemmakLTSk k
   in rewrite sym $ lemmaplusOneRight k in CNOT (S k) 0 ((encodingUnitary xs) # IdGate {n=1})
 
 
@@ -163,14 +166,14 @@ encodingUnitary {n = S k} (PauliZ :: xs) =
 ||| nSamples -- the number of time we sample
 ||| circuit  -- the state |psi>
 ||| output   -- computed energy
-computeEnergyPauli : QuantumOp t => (n : Nat) -> (p : PauliBasis n) -> (nSamples : Nat) -> (circuit : Unitary n) -> IO Double
+computeEnergyPauli : UnitaryOp t => QuantumOp t => (n : Nat) -> (p : PauliBasis n) -> (nSamples : Nat) -> (circuit : Unitary n) -> IO Double
 computeEnergyPauli n p 0 circuit = pure 0
 computeEnergyPauli n p (S nSamples) circuit = do
   let encodingCircuit = encodingUnitary p
-  (b :: _) <- run (do
+  (b :: _) <- runQ (do
                qs <- newQubits {t} (S n)
-               qs <- applyUnitary qs ( (IdGate {n=1}) # circuit)
-               qs <- applyUnitary qs encodingCircuit
+               qs <- applyUnitaryQ (applyUnitary qs (tensor (IdGate {n=1}) circuit))
+               qs <- applyUnitaryQ (applyUnitary qs encodingCircuit)
                measureAll qs
                )
   rest <- computeEnergyPauli {t} n p nSamples circuit
@@ -187,7 +190,7 @@ computeEnergyPauli n p (S nSamples) circuit = do
 ||| nSamples -- the number of time we sample for each component of H
 ||| circuit  -- the state |psi>
 ||| output   -- computed energy
-computeEnergy : QuantumOp t => (n : Nat) -> (h : Hamiltonian n) -> (nSamples : Nat) -> (circuit : Unitary n) -> IO Double
+computeEnergy : UnitaryOp t => QuantumOp t => (n : Nat) -> (h : Hamiltonian n) -> (nSamples : Nat) -> (circuit : Unitary n) -> IO Double
 computeEnergy n [] nSamples circuit = pure 0
 computeEnergy n ((r, p) :: hs) nSamples circuit = do
   res1 <- computeEnergy {t} n hs nSamples circuit
@@ -259,7 +262,7 @@ classicalOptimisation depth h previous_info = do
 ||| k        -- number of iterations of the algorithm
 ||| depth    -- depth of the ansatz circuit
 ||| output   -- all observed information : rotation angles and computed energies
-VQE': QuantumOp t =>
+VQE': UnitaryOp t => QuantumOp t =>
        (n : Nat) -> (h : Hamiltonian n) -> (nSamples : Nat) -> (k : Nat) -> (depth : Nat) ->
        IO (Vect k (RotationAnglesMatrix depth n, RotationAnglesMatrix depth n, Double))
 VQE' n h nSamples 0 depth = pure []
@@ -285,7 +288,7 @@ VQE' n h nSamples (S k) depth = do
 ||| depth    -- depth of the ansatz circuit
 ||| output   -- the lowest computed energy
 export
-VQE : QuantumOp t =>
+VQE : UnitaryOp t => QuantumOp t =>
       (n : Nat) -> (h : Hamiltonian n) -> (nSamples : Nat) -> (k : Nat) -> (depth : Nat) ->
       IO Double
 VQE n h nSamples k depth = do

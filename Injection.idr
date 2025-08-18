@@ -4,6 +4,7 @@ import Data.Vect
 import Data.Nat
 import Neq
 import LinearTypes
+import Decidable.Equality
 
 %default total
 -----------------------Syntactic tests for either----------------------------
@@ -120,7 +121,7 @@ ifDiffThenSubDiff : IsDifferentT m (x::xs) -> IsDifferentT m xs
 ifDiffThenSubDiff (IsDiffSucc a b) = b
 
 export
-isDiffToPrf: IsDifferentT m (x::xs) -> Either (LT m x) (LT x m)
+isDiffToPrf : IsDifferentT m (x::xs) -> Either (LT m x) (LT x m)
 isDiffToPrf (IsDiffSucc a b) = a
 
 public export
@@ -160,6 +161,67 @@ export
 ifInjectiveThenSubInjective : IsInjectiveT m (x::xs) -> IsInjectiveT m xs
 ifInjectiveThenSubInjective (IsInjectiveSucc allDiff allSmall)= IsInjectiveSucc (ifAllDiffThenSubDiff allDiff) (ifAllSmallThenSubSmall allSmall)
 
+||| Alternative - equality to Void
+
+public export
+data IsDifferentDec : (m: Nat) -> (v: Vect n Nat) -> Type where
+    IsDiffNilDec  : IsDifferentDec m []
+    IsDiffSuccDec : (m = x -> Void)-> (soFarDiff: IsDifferentDec m xs)-> IsDifferentDec m (x :: xs)
+
+export
+isDifferentDec : Nat -> Vect n Nat -> Type
+isDifferentDec n v = IsDifferentDec n v
+
+export
+ifDiffThenSubDiffDec  : IsDifferentDec  m (x::xs) -> IsDifferentDec m xs
+ifDiffThenSubDiffDec (IsDiffSuccDec a b) = b
+
+export
+isDiffToPrfDec : IsDifferentDec k (x::xs) -> (k = x -> Void)
+isDiffToPrfDec (IsDiffSuccDec a b) = a
+
+export
+eqSymVoid : (k = x -> Void) -> (x = k -> Void)
+eqSymVoid kxToVoid Refl = kxToVoid Refl
+
+
+public export
+data AllDifferentDec : (v: Vect n Nat) -> Type where
+    AllDiffNilDec  : AllDifferentDec []
+    AllDiffSuccDec : IsDifferentDec x xs -> (soFarDiff: AllDifferentDec xs)-> AllDifferentDec (x :: xs)
+
+export
+ifAllDiffDecThenSubDiffDec : AllDifferentDec (x::xs) -> AllDifferentDec xs
+ifAllDiffDecThenSubDiffDec (AllDiffSuccDec a b) = b
+
+export
+allDiffDecToPrf : AllDifferentDec (x::xs) -> IsDifferentDec x xs
+allDiffDecToPrf (AllDiffSuccDec a b) = a
+
+public export
+allDifferentDec : Vect n Nat -> Type
+allDifferentDec v = AllDifferentDec v
+
+public export
+data IsInjectiveDec : (m:Nat) -> (v: Vect n Nat) -> Type where
+    IsInjectiveSuccDec : AllDifferentDec v -> AllSmallerT v m -> IsInjectiveDec m v
+
+public export
+isInjectiveDec : Nat -> Vect n Nat -> Type
+isInjectiveDec m v = IsInjectiveDec m v
+
+export
+getAllSmallerDec : IsInjectiveDec m v -> AllSmallerT v m
+getAllSmallerDec (IsInjectiveSuccDec prf1 prf2) = prf2
+
+export
+getAllDifferentDec : IsInjectiveDec m v -> AllDifferentDec v
+getAllDifferentDec (IsInjectiveSuccDec prf1 prf2) = prf1
+
+export
+ifInjectiveDecThenSubInjectiveDec : IsInjectiveDec m (x::xs) -> IsInjectiveDec m xs
+ifInjectiveDecThenSubInjectiveDec (IsInjectiveSuccDec allDiff allSmall) =
+    IsInjectiveSuccDec (ifAllDiffDecThenSubDiffDec allDiff) (ifAllSmallThenSubSmall allSmall)   
 
 {-public export
 data EitherAnd : (sumType: Either a b) -> Type where
