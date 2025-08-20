@@ -51,16 +51,62 @@ interface UnitaryOp (0 t : Nat -> Type) where
     [q1,q2] <- applyUnitary {n} {i = 2} ([q1,q2]) CNOTGate
     pure (q1::q2::[])
   
+  ||| Apply the controlled version of a unitary. Implementations assume control goes at head of lvect list
   applyControlledU : {i:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (t n) (t n) (LVect i Qubit))
                                -> UStateT (t n) (t n) (LVect (S i) Qubit) 
 
+  ||| Apply the controlled version of a unitary. Implementations assume control goes at head of lvect list
+  applyControlledUSplit : {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit)))
+                               -> UStateT (t n) (t n) (LPair (LVect (S (i)) Qubit) (LVect j Qubit))
+  
+  reCombine : {i:Nat} -> {j:Nat} ->  {n : Nat} -> (1 _ : LVect i Qubit) -> (1 _ : LVect j Qubit) -> UStateT (t n) (t n) (LVect (i+j) Qubit)
+  reCombine {i=i} is js =  pure $ LinearTypes.(++) is js                             
+
+  reCombineSingleR : {i:Nat} -> {n : Nat} -> (1 _ : LVect i Qubit) -> (1 _ : Qubit) -> UStateT (t n) (t n) (LVect (S i) Qubit)
+  reCombineSingleR {i=i} is q =  pure $ (rewrite sym $ lemmaplusOneRightHC {n = i} in (LinearTypes.(++) is [q]))
+
+  reCombineSingleL : {i:Nat}  -> {n : Nat} -> (1 _ : Qubit) -> (1 _ : LVect i Qubit) -> UStateT (t n) (t n) (LVect (S i) Qubit)
+  reCombineSingleL {i=i} q is = pure $ (q :: is)
+
+  reCombineAbs : {i:Nat} -> {j:Nat} -> {n : Nat} -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit))) 
+                -> UStateT (t n) (t n) (LVect (i + j) Qubit)
+  
   ||| sequence to the end
   run :  {i : Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LVect i Qubit) ) -> (LPair (t n) (LVect i Qubit))
 
+  runSplit :  {i : Nat} -> {j:Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit)) ) -> (LPair (t n) (LPair (LVect i Qubit) (LVect j Qubit)))
+
+------ UTILITIES ------
 %hint
 export
 singleQubit : (1 _ : LVect 1 Qubit)-> Qubit
 singleQubit [q] = q
+
+public export
+splitFirstUtil : UnitaryOp t => {i: Nat} -> {n : Nat} -> (1_ : LVect (S i) Qubit) -> UStateT (t n) (t n) (LPair (LVect 1 Qubit) (LVect i Qubit))
+splitFirstUtil [a] = pure $ [a] # []
+splitFirstUtil (a::(as::ass)) = do
+    pure $ [a] # (as::ass)
+
+|||get the First qubit from a list of qubits
+public export
+splitLastUtil : UnitaryOp t => {i: Nat} -> {n : Nat} -> (1_ : LVect (S i) Qubit) -> UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect 1 Qubit))
+splitLastUtil [a] = pure $ [] # [a]
+splitLastUtil (a::(as::ass)) = do
+    ass # last <- splitLastUtil (as::ass)
+    pure $ (a :: ass) # last
+
+||| split qubits at index
+public export
+splitQubitsAt : UnitaryOp t => {i: Nat} -> {n : Nat} -> (k: Nat) -> {auto prf: LT k i} -> (1_ : LVect i Qubit) 
+                            -> UStateT (t n) (t n) (LPair (LVect k Qubit) (LVect (minus i k) Qubit))
+splitQubitsAt k [] = absurd prf
+splitQubitsAt 0 any  = pure $ [] # (rewrite minusZeroRight i in any)
+splitQubitsAt (S k) (a::as) = do
+    as # ass <- splitQubitsAt k (as)
+    pure $ ((a :: as)) # ass
+
+
 
 public export
 data SimulatedOp : Nat -> Type where
@@ -225,7 +271,25 @@ public export
 run' : {i:Nat} -> (1_: SimulatedOp n) -> (1 _ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit) ) -> LPair (SimulatedOp n) (LVect i Qubit)
 run' {i = i} simop ust = runUStateT simop ust
 
+public export
+runSplit' : {i:Nat} -> {j:Nat} -> (1_: SimulatedOp n) -> (1 _ : UStateT (SimulatedOp n) (SimulatedOp n) (LPair (LVect i Qubit) (LVect j Qubit)))  
+                -> LPair (SimulatedOp n) (LPair (LVect i Qubit) (LVect j Qubit))
+runSplit' {i = i} simop ust = runUStateT simop ust
+
 ||| Auxiliary function for applying a circuit to some qubits
+private
+reCombineAbs' : {n : Nat} -> {i : Nat} -> {j:Nat} ->
+  (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LPair (LVect i Qubit) (LVect j Qubit))) -> (1 _ : SimulatedOp n) -> (LPair (SimulatedOp n) (LVect (i +j) Qubit))
+reCombineAbs' ust (MkSimulatedOp qs v counter) = let (Builtin.(#) opOut (lvect #rvect)) = (UnitaryOp.runSplit' (MkSimulatedOp qs v counter) ust) in do
+ (Builtin.(#) opOut (LinearTypes.(++) lvect rvect))
+
+ 
+export
+reCombineAbsSimulated : {n : Nat} -> {i : Nat} -> {j:Nat} ->
+  (1_ : (UStateT (SimulatedOp n) (SimulatedOp n) (LPair (LVect i Qubit) (LVect j Qubit)) ))-> UStateT (SimulatedOp n) (SimulatedOp n) (LVect (i+j) Qubit)
+reCombineAbsSimulated q = MkUST (reCombineAbs' q)
+
+
 private
 applyUnitaryAbs' : {n : Nat} -> {i : Nat} ->
   (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)) -> (1 _ : SimulatedOp n) -> (LPair (SimulatedOp n) (LVect i Qubit))
@@ -239,16 +303,30 @@ applyUnitaryAbsSimulated : {n : Nat} -> {i : Nat} ->
 applyUnitaryAbsSimulated q = MkUST (applyUnitaryAbs' q)
 
 private
-applyControlledAbs' : {n : Nat} -> {i : Nat} -> (1 _ : Qubit) ->
+applyControlled' : {n : Nat} -> {i : Nat} -> (1 _ : Qubit) ->
   (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)) -> (1 _ : SimulatedOp n) -> (LPair (SimulatedOp n) (LVect (S i) Qubit))
-applyControlledAbs' q ust (MkSimulatedOp qs v counter) = let (Builtin.(#) opOut lvect) = (UnitaryOp.run' (MkSimulatedOp qs v counter) ust) in do
+applyControlled' q ust (MkSimulatedOp qs v counter) = let (Builtin.(#) opOut lvect) = (UnitaryOp.run' (MkSimulatedOp qs v counter) ust) in do
  (Builtin.(#) opOut (q ::lvect ))
 
  
 export
-applyControlledAbsSimulated : {n : Nat} -> {i : Nat} -> (1_ : Qubit) ->
+applyControlledSimulated : {n : Nat} -> {i : Nat} -> (1_ : Qubit) ->
   (1_ : (UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit) )) -> UStateT (SimulatedOp n) (SimulatedOp n) (LVect (S i) Qubit)
-applyControlledAbsSimulated control q = MkUST (applyControlledAbs' control q)
+applyControlledSimulated control q = MkUST (applyControlled' control q)
+
+private
+applyControlledSplit' : {n : Nat} -> {i : Nat} -> {j : Nat} -> (1 _ : Qubit) ->
+  (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LPair (LVect i Qubit) (LVect j Qubit))) 
+  -> (1 _ : SimulatedOp n) -> (LPair (SimulatedOp n) (LPair (LVect (S (i)) Qubit) (LVect j Qubit)))
+applyControlledSplit' q ust (MkSimulatedOp qs v counter) = let (Builtin.(#) opOut (lvect # rvect)) = (UnitaryOp.runSplit' (MkSimulatedOp qs v counter) ust) in do
+ (Builtin.(#) opOut ((q ::lvect) # rvect))
+
+ 
+export
+applyControlledSimulatedSplit : {n : Nat} -> {i : Nat} -> {j : Nat} -> (1_ : Qubit) ->
+  (1_ : (UStateT (SimulatedOp n) (SimulatedOp n) (LPair (LVect i Qubit) (LVect j Qubit)))) 
+  -> UStateT (SimulatedOp n) (SimulatedOp n) (LPair (LVect (S i) Qubit) (LVect j Qubit))
+applyControlledSimulatedSplit control q = MkUST (applyControlledSplit' control q)
 
 {-}
 applyUnitary' : {n : Nat} -> {i : Nat} -> {k : Nat} -> {r : Nat} -> (1 _ : LVect k Qubit) -> (1 _ : LVect r Qubit) 
@@ -377,5 +455,8 @@ export
 UnitaryOp SimulatedOp where
   applyUnitary = applyUnitarySimulated
   applyUnitaryAbs  = applyUnitaryAbsSimulated
-  applyControlledU = applyControlledAbsSimulated
+  applyControlledU = applyControlledSimulated
+  applyControlledUSplit = applyControlledSimulatedSplit
+  reCombineAbs = reCombineAbsSimulated
   run          = run' 
+  runSplit = runSplit'

@@ -218,6 +218,61 @@ export
 succInjective : {left, right : Nat} -> S left = S right -> left = right
 succInjective Refl = Refl
 
+export
+ltekplusk : {k:Nat} -> LTE k (k + k)
+ltekplusk {k} = lemmaLTEAddR k k
+
+export
+plusk2 : {k:Nat} -> (plus k 2) = S ( S k)
+plusk2 = rewrite sym $ plusOneSucc (k) in (rewrite plusCommutative 1 k in (rewrite sym $ plusSuccRightSucc (k) 1 in Refl))
+
+export
+lteSk : {k:Nat} -> LTE (S k) (S k + (S k))
+lteSk = ltekplusk {k = (S k)}
+
+export
+lteSSk : {k:Nat} -> LTE (S (S k)) (S (S k + (S k)))  
+lteSSk = LTESucc (lteSk {k = k})
+
+lteSkS : {k:Nat} -> LTE (S (S k)) (S k + S (S k)) 
+lteSkS = rewrite sym $ plusSuccRightSucc (S k) (S k) in (lteSSk {k = k})
+
+export
+%hint
+lte2ks : {k:Nat} -> LTE (S (S (S ( S k)))) (S (S (S k + S (S k))))
+lte2ks = LTESucc $ LTESucc $ lteSkS {k = k}
+
+export 
+%hint
+lteplus2s : {k:Nat} -> LTE (S (S (plus k 2))) (S (S (S k + S (S k))))
+lteplus2s {k} = rewrite plusk2 {k = k} in lte2ks {k = k}
+
+export
+minuspluszerore : {left: Nat} -> {right: Nat} -> minus (plus (left + 0) right) (left + 0) = minus (plus (left) right) (left + 0)
+minuspluszerore = rewrite plusZeroRightNeutral left in Refl
+
+
+export
+%hint
+lteSiPlusi: {i:Nat} -> LTE (S i) (S (plus i i))
+lteSiPlusi = LTESucc ltekplusk
+
+export
+%hint
+lteSiPlusSi: {i:Nat} -> LTE (S (S i)) (S (plus i (S i)))
+lteSiPlusSi = rewrite sym $ plusSuccRightSucc i i in LTESucc $ lteSiPlusi
+
+public export
+plusMinusLeftCancel0 : (left, right : Nat)  ->
+  minus (plus left right) (left) = right
+plusMinusLeftCancel0 left right = rewrite sym $ plusZeroRightNeutral left in (rewrite minuspluszerore {left = left} {right = right} in (rewrite plusMinusLeftCancel left right 0 in (rewrite minusZeroRight right in Refl)))
+
+public export
+%hint
+plusMinusLeftCancel0H : {left, right : Nat} ->
+  minus (plus left right) (left) = right
+plusMinusLeftCancel0H {left} {right} = plusMinusLeftCancel0 left right
+
 --Small helper lemmas to make the actual functions look less messy--
 ltz1: LT 0 1
 ltz1 = lteRefl 1

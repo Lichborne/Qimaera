@@ -24,19 +24,20 @@ import Qubit
 Rm : Nat -> Unitary 1
 Rm m = PGate (2 * pi / (pow 2 (cast m)))
 
+public export
 ||| Controlled phase gate with phase 2 pi / (2^m)
 cRm : Nat -> Unitary 2
 cRm m = controlled (Rm m)
 
-||| Builds the UnitaryOp version of Rm
-RmUOp : UnitaryOp t => {n:Nat} -> Nat -> (1_: Qubit) -> UStateT (t n) (t n) (LVect 1 Qubit)
-RmUOp m q = do
+||| Builds the UnitaryOp (abstract) version of Rm
+RmAbs : UnitaryOp t => {n:Nat} -> Nat -> (1_: Qubit) -> UStateT (t n) (t n) (LVect 1 Qubit)
+RmAbs m q = do
   q <- applyP (2 * pi / (pow 2 (cast m))) q
   pure q
 
-||| Builds the UnitaryOp version of cRm
-cRmUOp : UnitaryOp t => {n:Nat} -> Nat -> (1_: Qubit) -> (1_: Qubit) -> UStateT (t n) (t n) (LVect 2 Qubit)
-cRmUOp m c u = applyControlledU c (RmUOp m u)
+||| Builds the UnitaryOp (abstract) version of cRm
+cRmAbs : UnitaryOp t => {n:Nat} -> Nat -> (1_: Qubit) -> (1_: Qubit) -> UStateT (t n) (t n) (LVect 2 Qubit)
+cRmAbs m c u = applyControlledU c (RmAbs m u)
 
 ||| Builds the rotation operator for the QFT inside UnitaryOp using the unitaries built with Unitary
 rotate : UnitaryOp t => {n:Nat} -> {i:Nat} -> (m:Nat) -> (1_ : Qubit) -> (1 _ : LVect i Qubit) -> UStateT (t (n)) (t (n)) (LVect (S i) Qubit)
@@ -47,6 +48,7 @@ rotate {n} {i = (S k)} m q (p::ps) = do
         pure (q'':: p':: ps')
 
 ||| Builds the whole operator for the QFT inside UnitaryOp using rotation using the unitaries built with Unitary
+public export
 qftU :  UnitaryOp t => {n:Nat} -> {i:Nat} -> (1 _ : LVect i Qubit) -> UStateT (t (n)) (t (n)) (LVect (i) Qubit)
 qftU [] = pure []
 qftU {n} {i = S k} (q::qs) = do
@@ -56,43 +58,71 @@ qftU {n} {i = S k} (q::qs) = do
     pure (q'' :: qs'')
 
 ||| Full, partially abstract QFT
+public export
 qftQ : UnitaryOp t => QuantumOp t => (i : Nat) -> (n: Nat) -> (1 _ : LVect i Qubit) -> QStateT (t n) (t n) (LVect i Qubit)
 qftQ i n qs = applyUnitaryQ {t=t} (qftU {t=t} {i = i} {n = n} (qs))
 
 ||| Builds the *abstract* rotation operator for the QFT inside UnitaryOp
-rotate' : UnitaryOp t => {n:Nat} -> {i:Nat} -> (m:Nat) -> (1_ : Qubit) -> (1 _ : LVect i Qubit) -> UStateT (t (n)) (t (n)) (LVect (S i) Qubit)
-rotate' m q [] = pure (q :: [])
-rotate' {n} {i = (S k)} m q (p::ps) = do
-        (q' :: [p']) <- applyUnitaryAbs (cRmUOp m q p)
-        (q'' :: ps') <- rotate' (S m) q' ps
+rotateAbs : UnitaryOp t => {n:Nat} -> {i:Nat} -> (m:Nat) -> (1_ : Qubit) -> (1 _ : LVect i Qubit) -> UStateT (t (n)) (t (n)) (LVect (S i) Qubit)
+rotateAbs m q [] = pure (q :: [])
+rotateAbs {n} {i = (S k)} m q (p::ps) = do
+        (q' :: [p']) <- applyUnitaryAbs (cRmAbs m q p)
+        (q'' :: ps') <- rotateAbs (S m) q' ps
         pure (q'':: p':: ps')
 
 ||| Builds the *abstract* operator for the QFT inside UnitaryOp using rotation
-qftU' :  UnitaryOp t => {n:Nat} -> {i:Nat} -> (1 _ : LVect i Qubit) -> UStateT (t (n)) (t (n)) (LVect (i) Qubit)
-qftU' [] = pure []
-qftU' {n} {i = S k} (q::qs) = do
+public export
+qftUAbs :  UnitaryOp t => {n:Nat} -> {i:Nat} -> (1 _ : LVect i Qubit) -> UStateT (t (n)) (t (n)) (LVect (i) Qubit)
+qftUAbs [] = pure []
+qftUAbs {n} {i = S k} (q::qs) = do
     (q' :: Nil ) <- applyH q
-    (q'' :: qs') <- rotate' (S (S Z)) q' qs
-    qs'' <- qftU' qs'
+    (q'' :: qs') <- rotateAbs (S (S Z)) q' qs
+    qs'' <- qftUAbs qs'
     pure (q'' :: qs'')
 
 ||| Full, fully abstract QFT
-qftQ' : UnitaryOp t => QuantumOp t => (i : Nat) -> (n: Nat) -> (1 _ : LVect i Qubit) -> QStateT (t n) (t n) (LVect i Qubit)
-qftQ' i n qs = applyUnitaryQ {t=t} (qftU' {t=t} {i = i} {n = n} (qs))
+public export
+qftQAbs : UnitaryOp t => QuantumOp t => (i : Nat) -> (n: Nat) -> (1 _ : LVect i Qubit) -> QStateT (t n) (t n) (LVect i Qubit)
+qftQAbs i n qs = applyUnitaryQ {t=t} (qftUAbs {t=t} {i = i} {n = n} (qs))
 
 ||| Run with 3 qubits (any more takes too long on a normal computer)
-runQFT3 : UnitaryOp t => QuantumOp t => IO (Vect 3 Bool)
-runQFT3 = runQ {t=t} (do
+runQFTAbs3 : UnitaryOp t => QuantumOp t => IO (Vect 3 Bool)
+runQFTAbs3 = runQ {t=t} (do
     qs <- newQubits 3 {t = t}
-    qfts <- qftQ' {t=t} 3 3 qs 
+    qfts <- qftQAbs {t=t} 3 3 qs 
     measureAll qfts
     )
 
 ||| Test with 3 qubits (any more takes too long on a normal computer) 
-testQFT3 : IO (Vect 3 Bool)
-testQFT3 = (do
-  bs <- runQFT3 { t = SimulatedOp }
+testQFTAbs3 : IO (Vect 3 Bool)
+testQFTAbs3 = (do
+  bs <- runQFTAbs3 { t = SimulatedOp }
   pure bs)
+
+
+||| Builds the rotation operator for the QFT inside UnitaryOp using the unitaries built with Unitary
+rotateInv : UnitaryOp t => {n:Nat} -> {i:Nat} -> (m:Nat) -> (1_ : Qubit) -> (1 _ : LVect i Qubit) -> UStateT (t (n)) (t (n)) (LVect (S i) Qubit)
+rotateInv m q [] = pure (q :: [])
+rotateInv {n} {i = (S k)} m q (p::ps) = do
+        (q' :: ps') <- rotate (S m) q ps
+        (q'' :: [p']) <- applyUnitary (q' :: [p]) (adjoint (cRm m))
+        pure (q'':: p':: ps')
+
+||| Builds the whole operator for the QFT inside UnitaryOp using rotation using the unitaries built with Unitary
+public export
+qftUInv :  UnitaryOp t => {n:Nat} -> {i:Nat} -> (1 _ : LVect i Qubit) -> UStateT (t (n)) (t (n)) (LVect (i) Qubit)
+qftUInv [] = pure []
+qftUInv {n} {i = S k} (q::qs) = do
+    qs' <- qftUInv qs
+    (q' :: qs'') <- rotate (S (S Z)) q qs'
+    (q'' :: Nil ) <- applyUnitary [q'] (adjoint HGate)
+    pure (q'' :: qs'')
+
+||| Full, partially abstract QFT
+public export
+qftQInv : UnitaryOp t => QuantumOp t => (i : Nat) -> (n: Nat) -> (1 _ : LVect i Qubit) -> QStateT (t n) (t n) (LVect i Qubit)
+qftQInv i n qs = applyUnitaryQ {t=t} (qftUInv {t=t} {i = i} {n = n} (qs))
+
 
 
 {-
