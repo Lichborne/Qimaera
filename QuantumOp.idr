@@ -38,7 +38,7 @@ interface QuantumOp (0 t : Nat -> Type) where
 
   ||| Prepare a single new qubit in state |0>
   newQubit : QStateT (t n) (t (S n)) Qubit
-  newQubit = rewrite sym $ lemmaplusOneRight {n = n} in do
+  newQubit = rewrite sym $ lemmaplusOneRight n in do
     [q] <- newQubits 1
     pure q
   

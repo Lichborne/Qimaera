@@ -18,6 +18,8 @@ import Qubit
 
 %search_timeout 1000
 
+---------------- Restatements of some library functions idris cannot find ----------------------
+
 export
 lemmaplusOneRight : (n : Nat) -> n + 1 = S n
 lemmaplusOneRight n = rewrite plusCommutative n 1 in Refl
@@ -42,6 +44,11 @@ export
 lemmaPlusSRight : (n : Nat) -> (k : Nat) -> plus n (S k) = S (plus n k)
 lemmaPlusSRight Z     k = Refl
 lemmaPlusSRight (S p) k = rewrite lemmaPlusSRight p k in Refl
+
+export 
+%hint
+sPlusEq : {k:Nat} -> {m:Nat} -> S (plus k m) = plus k (S m)
+sPlusEq {k=k} {m=m} = rewrite plusSuccRightSucc k m in Refl
 
 --restatement of mirror locally 
 export
@@ -126,7 +133,7 @@ lemmaLTEAddR (S n) p = LTESucc $ lemmaLTEAddR n p
 
 export 
 %hint
-lemmaLTEAddL : (n : Nat) -> (p : Nat) -> LTE p (n+p)
+lemmaLTEAddL : (n : Nat) -> (p : Nat) -> LTE p (plus n p)
 lemmaLTEAddL n p = rewrite plusCommutative n p in lemmaLTEAddR p n
 
 
@@ -193,10 +200,20 @@ lemmaCompLT0 : (n : Nat) -> (j : Nat) -> {auto prf : LT j n} -> LT 0 n
 lemmaCompLT0 n 0 {prf} = prf
 lemmaCompLT0 p (S k) {prf} = lemmaCompLT0 p k {prf = fromLteSucc $ lteSuccRight prf}
 
+---------------- Lemmas about + (some are library functon restatements)---------------------
+
+
 export 
-%hint
-sPlusEq : {k:Nat} -> {m:Nat} -> S (plus k m) = plus k (S m)
-sPlusEq {k=k} {m=m} = rewrite plusSuccRightSucc k m in Refl
+plusSuccLeftSucc : (left, right : Nat) -> S (left + right) = (S left) + (right)
+plusSuccLeftSucc l r = rewrite plusCommutative l r in Refl
+
+export
+plusSuccLeftRight : (left, right : Nat) -> (S left + right) = (left) + (S right)
+plusSuccLeftRight l r = rewrite plusCommutative (S l) (r) in rewrite sym $ sPlusEq {k = r} {m = l} in 
+                        rewrite plusCommutative r l in rewrite sPlusEq {k=l} {m=r} in Refl
+
+plusSuccLeftisSuccRight : (left, right : Nat) -> (S left) + (right) = (left) + (S right)
+plusSuccLeftisSuccRight left right = rewrite plusSuccLeftSucc left right in (rewrite sym $ plusSuccLeftRight left right in Refl)
 
 export 
 %hint
@@ -259,8 +276,28 @@ lteSiPlusi = LTESucc ltekplusk
 
 export
 %hint
+lteSiPlusik: {i:Nat} -> {k:Nat} -> LTE (S i) (S (plus i k))
+lteSiPlusik {i} {k} = LTESucc $ lemmaLTEAddR i k 
+
+export
+%hint
 lteSiPlusSi: {i:Nat} -> LTE (S (S i)) (S (plus i (S i)))
 lteSiPlusSi = rewrite sym $ plusSuccRightSucc i i in LTESucc $ lteSiPlusi
+
+export
+%hint
+lteSiPlusSik: {i:Nat} -> {k:Nat} -> LTE (S (S i)) (S (plus i (S k)))
+lteSiPlusSik = rewrite sym $ plusSuccRightSucc i k in LTESucc $ lteSiPlusik
+
+export
+lteSiPlusPlusSiHelp: {i:Nat} -> {k:Nat} -> LTE (S (S (plus i (S i)))) (S (plus (plus i (S i)) (S k)))
+lteSiPlusPlusSiHelp {i} {k} = lteSiPlusSik {i = plus i (S i)} {k = k}
+
+export
+%hint
+lteSiPlusPlusSi: {i:Nat} -> LTE (S (S i)) (S (plus (plus i (S i)) (S i)))
+lteSiPlusPlusSi = lteTransitive (lteSiPlusSik {i=i} {k=i}) (lteSuccLeft $ lteSiPlusPlusSiHelp {i=i} {k=i})
+
 
 public export
 plusMinusLeftCancel0 : (left, right : Nat)  ->
@@ -273,6 +310,66 @@ plusMinusLeftCancel0H : {left, right : Nat} ->
   minus (plus left right) (left) = right
 plusMinusLeftCancel0H {left} {right} = plusMinusLeftCancel0 left right
 
+export
+minplusrewrite1 : {h:Nat} -> (minus (plus (plus h (S h)) (S h)) h) = (minus (plus (S h) ((plus h (S h)))) h)
+minplusrewrite1 {h} = rewrite plusCommutative (plus h (S h)) (S h) in Refl
+
+export
+minplusrewrite2 : {h:Nat} -> (minus (plus (S h) ((plus h (S h)))) h) = (minus (plus (S h) (S (plus h (h)))) h)
+minplusrewrite2 {h} = rewrite lemmaPlusSRight h h in Refl
+
+export
+minplusrewrite3 : {h:Nat} -> (minus (plus (S h) (S (plus h (h)))) h) = (minus (plus (h) (S (S (plus h (h))))) h)
+minplusrewrite3 {h} = rewrite plusSuccLeftRight h (S (plus h (h))) in Refl
+
+export
+lteSSplusHH : {h : Nat} -> LTE (S (S h)) (S (S (plus h (h))))
+lteSSplusHH {h} = LTESucc lteSiPlusi 
+
+export
+plusMinusLeftCancelDeep : {h:Nat} ->  LTE (S (S h)) (minus (plus (plus h (S h)) (S h)) h)
+plusMinusLeftCancelDeep {h} = rewrite minplusrewrite1 {h = h} in (rewrite minplusrewrite2 {h = h} in (
+                              rewrite minplusrewrite3 {h = h} in (rewrite plusMinusLeftCancel0 h (S (S (plus h h))) in lteSSplusHH)))
+
+export                            
+minusminusplusplusSH : {h:Nat} -> minus (minus (plus (plus h (S h)) (S h)) h) (S h) = S h          
+minusminusplusplusSH = rewrite minplusrewrite1 {h = h} in (rewrite minplusrewrite2 {h = h} in (
+                       rewrite minplusrewrite3 {h = h} in (rewrite plusMinusLeftCancel0 h (S (S (plus h h))) in 
+                       (rewrite plusSuccRightSucc h h in (rewrite plusMinusLeftCancel0 h (S h) in Refl)))))
+export
+veryLongPlusMinus : {h: Nat} -> plus (minus (plus (plus h (S h)) (S h)) h) (S (S h)) = S (plus (plus h (S h)) (S (S h)))
+veryLongPlusMinus {h} = rewrite minplusrewrite1 {h = h} in (rewrite minplusrewrite2 {h = h} in (
+                       rewrite minplusrewrite3 {h = h} in (rewrite plusMinusLeftCancel0 h (S (S (plus h h))) in 
+                       (rewrite sym $ plusSuccRightSucc h h in Refl))))
+
+export                      
+ltesss : (h:Nat) -> LTE (S (S (S (S h)))) (S (S (S (((h + (S h)) + (S h)) + (S h)))))
+ltesss h = LTESucc $ LTESucc $ LTESucc $ lemmaLTEAddL ((h + (S h)) + (S h)) (S h)
+--(S (S (S (plus (plus k (minus (plus (plus k (S k )) (S k )) k )) (S (S k )))))) rewrite sym $ plusSuccRightSucc (plus (plus h (S h)) (S h)) h in 
+
+export 
+mpppss : (h:Nat) -> minus(plus (plus (plus h (S h)) (S h)) (S h)) h = S (plus (plus h (S h)) (S h))
+mpppss h = rewrite plusCommutative (plus (plus h (S h)) (S h)) (S h) in (rewrite plusSuccLeftisSuccRight h (plus (plus h (S h)) (S h)) in 
+            rewrite plusMinusLeftCancel0 h (S (plus (plus h (S h)) (S h))) in Refl)
+
+export            
+plusSheq : (h:Nat) -> plus (S (S (S h))) (S (plus (plus h (S h)) (S h))) = S (S (S (plus (plus (plus h (S h)) (S h)) (S h))))
+plusSheq h = rewrite plusSuccLeftSucc ((S (S h))) (S (plus (plus h (S h)) (S h))) in 
+             rewrite plusSuccLeftSucc (((S h))) (S (plus (plus h (S h)) (S h))) in
+             rewrite plusSuccLeftSucc (((h))) (S (plus (plus h (S h)) (S h))) in 
+             rewrite plusCommutative (plus (plus h (S h)) (S h)) (S h) in 
+             rewrite plusSuccRightSucc' h (plus (plus h (S h)) (S h)) in Refl 
+
+export
+plusSSeq : (h:Nat) ->  (S (S (S (S (plus (plus (plus h (S h)) (S h)) (S h)))))) = S (S (S (plus (plus (plus (S h) (S h)) (S h)) (S h))))
+plusSSeq h = rewrite plusSuccLeftSucc ((plus (plus h (S h)) (S h))) (S h) in Refl
+
+export
+plusthreeSeq : (h:Nat) ->  (3 + plus (S h) (plus (plus (S h) (S h)) (S h))) = (3 + (S (plus (plus (plus h (S h)) (S h)) (S h))))
+plusthreeSeq h = rewrite plusSSeq h in rewrite plusCommutative (plus (plus (S h) (S h)) (S h)) (S h) in Refl
+
+
+--(S (S (S (S (plus h (S (plus (plus h (S h)) (S h))))))))
 --Small helper lemmas to make the actual functions look less messy--
 ltz1: LT 0 1
 ltz1 = lteRefl 1

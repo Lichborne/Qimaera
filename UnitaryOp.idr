@@ -54,29 +54,46 @@ interface UnitaryOp (0 t : Nat -> Type) where
   ||| Apply the controlled version of a unitary. Implementations assume control goes at head of lvect list
   applyControlledU : {i:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (t n) (t n) (LVect i Qubit))
                                -> UStateT (t n) (t n) (LVect (S i) Qubit) 
-
-  ||| Apply the controlled version of a unitary. Implementations assume control goes at head of lvect list
-  applyControlledUSplit : {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit)))
-                               -> UStateT (t n) (t n) (LPair (LVect (S (i)) Qubit) (LVect j Qubit))
-  
-  reCombine : {i:Nat} -> {j:Nat} ->  {n : Nat} -> (1 _ : LVect i Qubit) -> (1 _ : LVect j Qubit) -> UStateT (t n) (t n) (LVect (i+j) Qubit)
-  reCombine {i=i} is js =  pure $ LinearTypes.(++) is js                             
-
-  reCombineSingleR : {i:Nat} -> {n : Nat} -> (1 _ : LVect i Qubit) -> (1 _ : Qubit) -> UStateT (t n) (t n) (LVect (S i) Qubit)
-  reCombineSingleR {i=i} is q =  pure $ (rewrite sym $ lemmaplusOneRightHC {n = i} in (LinearTypes.(++) is [q]))
-
-  reCombineSingleL : {i:Nat}  -> {n : Nat} -> (1 _ : Qubit) -> (1 _ : LVect i Qubit) -> UStateT (t n) (t n) (LVect (S i) Qubit)
-  reCombineSingleL {i=i} q is = pure $ (q :: is)
-
-  reCombineAbs : {i:Nat} -> {j:Nat} -> {n : Nat} -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit))) 
-                -> UStateT (t n) (t n) (LVect (i + j) Qubit)
   
   ||| sequence to the end
   run :  {i : Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LVect i Qubit) ) -> (LPair (t n) (LVect i Qubit))
 
-  runSplit :  {i : Nat} -> {j:Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit)) ) -> (LPair (t n) (LPair (LVect i Qubit) (LVect j Qubit)))
+  --------------------- Split Computation and Accompanying Utilities -------------------------
 
------- UTILITIES ------
+  ||| sequence to the end with split computation
+  runSplit :  {i : Nat} -> {j:Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit)) ) 
+              -> (LPair (t n) (LPair (LVect i Qubit) (LVect j Qubit)))
+
+  ||| Apply the controlled version of a unitary. Implementations assume control goes at head of lvect list
+  applyControlledUSplit : {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit)))
+                               -> UStateT (t n) (t n) (LPair (LVect (S (i)) Qubit) (LVect j Qubit))
+
+  ||| SWAP registers in parsing; an exchange of "wires", easy to make conditional                            
+  swapRegistersSplit : {i:Nat} -> {j:Nat}  -> {n : Nat} -> (1 _ : LVect i Qubit) -> (1 _ : LVect j Qubit) -> UStateT (t n) (t n) (LPair (LVect j Qubit) (LVect i Qubit))
+  swapRegistersSplit qs rs = pure $ rs # qs
+
+  ||| SWAP registers in parsing; an exchange of "wires", easy to make conditional                            
+  swapRegistersSplitEq : {i:Nat}  -> {n : Nat} -> (1 _ : LVect i Qubit) -> (1 _ : LVect i Qubit) -> UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect i Qubit))
+  swapRegistersSplitEq qs rs = pure $ rs # qs
+
+  |||recombine split computation
+  reCombine : {i:Nat} -> {j:Nat} ->  {n : Nat} -> (1 _ : LVect i Qubit) -> (1 _ : LVect j Qubit) -> UStateT (t n) (t n) (LVect (i+j) Qubit)
+  reCombine {i=i} is js =  pure $ LinearTypes.(++) is js  
+
+  |||recombine split computation, adding one qubit to the end
+  reCombineSingleR : {i:Nat} -> {n : Nat} -> (1 _ : LVect i Qubit) -> (1 _ : Qubit) -> UStateT (t n) (t n) (LVect (S i) Qubit)
+  reCombineSingleR {i=i} is q =  pure $ (rewrite sym $ lemmaplusOneRightHC {n = i} in (LinearTypes.(++) is [q]))
+
+  ||| recombine split computation, adding one qubit to the beginning
+  reCombineSingleL : {i:Nat}  -> {n : Nat} -> (1 _ : Qubit) -> (1 _ : LVect i Qubit) -> UStateT (t n) (t n) (LVect (S i) Qubit)
+  reCombineSingleL {i=i} q is = pure $ (q :: is)
+  
+  ||| Abstract recombination
+  reCombineAbs : {i:Nat} -> {j:Nat} -> {n : Nat} -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit))) 
+                -> UStateT (t n) (t n) (LVect (i + j) Qubit)
+  --------------------------------------------------------------------------------
+
+------ OTHER UTILITIES ------
 %hint
 export
 singleQubit : (1 _ : LVect 1 Qubit)-> Qubit
@@ -96,7 +113,7 @@ splitLastUtil (a::(as::ass)) = do
     ass # last <- splitLastUtil (as::ass)
     pure $ (a :: ass) # last
 
-||| split qubits at index
+||| split qubits at index. careful with proofs 
 public export
 splitQubitsAt : UnitaryOp t => {i: Nat} -> {n : Nat} -> (k: Nat) -> {auto prf: LT k i} -> (1_ : LVect i Qubit) 
                             -> UStateT (t n) (t n) (LPair (LVect k Qubit) (LVect (minus i k) Qubit))
@@ -106,11 +123,24 @@ splitQubitsAt (S k) (a::as) = do
     as # ass <- splitQubitsAt k (as)
     pure $ ((a :: as)) # ass
 
+||| split qubits at index
+public export    
+splitQubitsInto : UnitaryOp t => {i: Nat} -> {n : Nat} -> (k: Nat) -> (r:Nat) -> {auto prf: k + r = i} -> (1_ : LVect i Qubit) 
+                            -> UStateT (t n) (t n) (LPair (LVect k Qubit) (LVect r Qubit))
+splitQubitsInto 0 0 [] = pure $ [] # []
+splitQubitsInto 0 0 (a::as) impossible
+splitQubitsInto {prf} 0 r any = (pure $ [] # (rewrite prf in any))
+splitQubitsInto k 0 any = pure $ (rewrite sym $ plusZeroRightNeutral k in (rewrite prf in any)) # []
+splitQubitsInto {prf = prf} {i = S h} (S k) (S r) (a::as) = do
+    as # ass <- splitQubitsInto {prf = succInjective (rewrite plusSuccLeftSucc (k) (S r) in prf)}k (S r) (as)
+    pure $ ((a :: as)) # ass
 
+--interactive test : splitQubitsAt {t = SimulatedOp} 2 (MkQubit 0 :: MkQubit 1 :: MkQubit 2 :: MkQubit 3 :: LinearTypes.Nil) 
 
 public export
 data SimulatedOp : Nat -> Type where
   MkSimulatedOp : {n : Nat} -> Matrix (power 2 n) 1 -> Vect n Qubit -> Nat -> SimulatedOp n
+
 
 ------ SIMULATION : AUXILIARY (PRIVATE) FUNCTIONS ------
 
