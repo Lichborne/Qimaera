@@ -21,6 +21,7 @@ import Qubit
 ---------------- Restatements of some library functions idris cannot find ----------------------
 
 export
+%hint
 lemmaplusOneRight : (n : Nat) -> n + 1 = S n
 lemmaplusOneRight n = rewrite plusCommutative n 1 in Refl
 
@@ -36,8 +37,24 @@ lemmaplusOneRightH {n = n} = Refl
 
 export
 %hint
+lemmaplusOneLeft : (n : Nat) -> 1 + n = S n
+lemmaplusOneLeft n = Refl
+
+export
+%hint
+lemmaplusOneLeftsym : (n : Nat) -> S n = 1 + n 
+lemmaplusOneLeftsym n = Refl
+
+export
+%hint
 lemmaplusOneRightHSym : {n : Nat} ->  S n = n + 1 
 lemmaplusOneRightHSym {n = n} = sym $ rewrite plusCommutative n 1 in Refl
+
+export
+%hint
+lemmaplusOneRightHSymExp : (n : Nat) ->  S n = n + 1 
+lemmaplusOneRightHSymExp n = lemmaplusOneRightHSym {n = n}
+
 
 export
 %hint

@@ -148,6 +148,23 @@ encodingUnitary {n = S k} (PauliY :: xs) =  let p1 = lemmakLTSk k
 encodingUnitary {n = S k} (PauliZ :: xs) = let p1 = lemmakLTSk k
   in rewrite sym $ lemmaplusOneRight k in CNOT (S k) 0 ((encodingUnitary xs) # IdGate {n=1})
 
+encodingUnitaryOp : UnitaryOp t => {n : Nat} -> {i : Nat} -> (h : PauliBasis i) -> (1_ : LVect (i) Qubit) -> (1_ : LVect 1 Qubit) 
+                              -> UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect 1 Qubit))
+encodingUnitaryOp [] qs last = pure $ qs # last
+encodingUnitaryOp {i = S k} (PauliI :: xs) (q::qs) last = do
+        (q::qs) # drop <- splitLastUtil (q::qs)
+        (q::qs) # [drop] <- (encodingUnitaryOp xs (q::qs) drop)
+        combined <- reCombineSingleR (q::qs) drop
+        pure $ combined # last
+encodingUnitaryOp {i = S k} (PauliX :: xs) (q::qs) last = do
+        (q::qs) # drop <- splitLastUtil (q::qs) 
+        (target::qs) # [qx] <- (encodingUnitaryOp xs (q::qs) drop)
+        [qxH] <- applyH qx
+        (qxf::[first]) <- applyCNOT qxH target  -- CNOT (S k) 0 (H (S k) ((encodingUnitary xs) # IdGate {n=1}))
+        ret <- reCombineSingleR (first::qs) qxf
+        pure $ ret # last
+encodingUnitaryOp {i = S k} (PauliY :: xs) (q::qs) last = ?we -- CNOT (S k) 0 (H (S k) (S (S k) ((encodingUnitary xs) # IdGate {n=1})))
+encodingUnitaryOp {i = S k} (PauliZ :: xs) (q::qs) last = ?wer-- CNOT (S k) 0 ((encodingUnitary xs) # IdGate {n=1})  
 
 -- the next function computes <psi|H|psi>, for H a tensor product of Pauli Matrices
 -- This is the function that needs to run the quantum circuit

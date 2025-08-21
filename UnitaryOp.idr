@@ -54,6 +54,10 @@ interface UnitaryOp (0 t : Nat -> Type) where
   ||| Apply the controlled version of a unitary. Implementations assume control goes at head of lvect list
   applyControlledU : {i:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (t n) (t n) (LVect i Qubit))
                                -> UStateT (t n) (t n) (LVect (S i) Qubit) 
+
+  ||| Abstract tensoring of two unitaries (UnitaryOps)
+  tensorUnitaryAbs : {n : Nat} -> {i : Nat} -> {j : Nat} -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit)) ) 
+                      -> UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit))
   
   ||| sequence to the end
   run :  {i : Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LVect i Qubit) ) -> (LPair (t n) (LVect i Qubit))
@@ -68,32 +72,41 @@ interface UnitaryOp (0 t : Nat -> Type) where
   applyControlledUSplit : {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit)))
                                -> UStateT (t n) (t n) (LPair (LVect (S (i)) Qubit) (LVect j Qubit))
 
-  ||| SWAP registers in parsing; an exchange of "wires", easy to make conditional                            
-  swapRegistersSplit : {i:Nat} -> {j:Nat}  -> {n : Nat} -> (1 _ : LVect i Qubit) -> (1 _ : LVect j Qubit) -> UStateT (t n) (t n) (LPair (LVect j Qubit) (LVect i Qubit))
-  swapRegistersSplit qs rs = pure $ rs # qs
-
-  ||| SWAP registers in parsing; an exchange of "wires", easy to make conditional                            
-  swapRegistersSplitEq : {i:Nat}  -> {n : Nat} -> (1 _ : LVect i Qubit) -> (1 _ : LVect i Qubit) -> UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect i Qubit))
-  swapRegistersSplitEq qs rs = pure $ rs # qs
-
   |||recombine split computation
   reCombine : {i:Nat} -> {j:Nat} ->  {n : Nat} -> (1 _ : LVect i Qubit) -> (1 _ : LVect j Qubit) -> UStateT (t n) (t n) (LVect (i+j) Qubit)
   reCombine {i=i} is js =  pure $ LinearTypes.(++) is js  
-
-  |||recombine split computation, adding one qubit to the end
-  reCombineSingleR : {i:Nat} -> {n : Nat} -> (1 _ : LVect i Qubit) -> (1 _ : Qubit) -> UStateT (t n) (t n) (LVect (S i) Qubit)
-  reCombineSingleR {i=i} is q =  pure $ (rewrite sym $ lemmaplusOneRightHC {n = i} in (LinearTypes.(++) is [q]))
-
-  ||| recombine split computation, adding one qubit to the beginning
-  reCombineSingleL : {i:Nat}  -> {n : Nat} -> (1 _ : Qubit) -> (1 _ : LVect i Qubit) -> UStateT (t n) (t n) (LVect (S i) Qubit)
-  reCombineSingleL {i=i} q is = pure $ (q :: is)
   
   ||| Abstract recombination
   reCombineAbs : {i:Nat} -> {j:Nat} -> {n : Nat} -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit))) 
                 -> UStateT (t n) (t n) (LVect (i + j) Qubit)
   --------------------------------------------------------------------------------
 
------- OTHER UTILITIES ------
+------------- OTHER UTILITIES ------------
+||| WHILE NOT STRICTLY A PART OF THE INTERFACE
+||| IT IS HIGHLY RECOMMENDED THAT THESE 
+||| UTILIZED, AS THEY MAKE LIFE A LOT EASIER
+------------------------------------------
+
+||| SWAP registers in parsing; an exchange of "wires", easy to make conditional 
+export                           
+swapRegistersSplit : UnitaryOp t => {i:Nat} -> {j:Nat}  -> {n : Nat} -> (1 _ : LVect i Qubit) -> (1 _ : LVect j Qubit) -> UStateT (t n) (t n) (LPair (LVect j Qubit) (LVect i Qubit))
+swapRegistersSplit qs rs = pure $ rs # qs
+
+||| SWAP registers in parsing; an exchange of "wires", easy to make conditional 
+export                           
+swapRegistersSplitEq : UnitaryOp t =>  {i:Nat}  -> {n : Nat} -> (1 _ : LVect i Qubit) -> (1 _ : LVect i Qubit) -> UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect i Qubit))
+swapRegistersSplitEq qs rs = pure $ rs # qs
+
+|||recombine split computation, adding one qubit to the end
+export
+reCombineSingleR :UnitaryOp t =>  {i:Nat} -> {n : Nat} -> (1 _ : LVect i Qubit) -> (1 _ : Qubit) -> UStateT (t n) (t n) (LVect (S i) Qubit)
+reCombineSingleR {i=i} is q =  pure $ (rewrite sym $ lemmaplusOneRightHC {n = i} in (LinearTypes.(++) is [q]))
+
+||| recombine split computation, adding one qubit to the beginning
+export
+reCombineSingleL : UnitaryOp t => {i:Nat}  -> {n : Nat} -> (1 _ : Qubit) -> (1 _ : LVect i Qubit) -> UStateT (t n) (t n) (LVect (S i) Qubit)
+reCombineSingleL {i=i} q is = pure $ (q :: is)
+
 %hint
 export
 singleQubit : (1 _ : LVect 1 Qubit)-> Qubit
@@ -124,7 +137,7 @@ splitQubitsAt (S k) (a::as) = do
     pure $ ((a :: as)) # ass
 
 ||| split qubits at index
-public export    
+public export
 splitQubitsInto : UnitaryOp t => {i: Nat} -> {n : Nat} -> (k: Nat) -> (r:Nat) -> {auto prf: k + r = i} -> (1_ : LVect i Qubit) 
                             -> UStateT (t n) (t n) (LPair (LVect k Qubit) (LVect r Qubit))
 splitQubitsInto 0 0 [] = pure $ [] # []
@@ -134,6 +147,15 @@ splitQubitsInto k 0 any = pure $ (rewrite sym $ plusZeroRightNeutral k in (rewri
 splitQubitsInto {prf = prf} {i = S h} (S k) (S r) (a::as) = do
     as # ass <- splitQubitsInto {prf = succInjective (rewrite plusSuccLeftSucc (k) (S r) in prf)}k (S r) (as)
     pure $ ((a :: as)) # ass
+
+public export    
+splitLVinto : (n : Nat) -> (k: Nat) -> (1_ : LVect (n + k) Qubit) 
+                            -> (LPair (LVect n Qubit) (LVect k Qubit))
+splitLVinto  0 0 [] = [] # []
+splitLVinto 0 0 (a::as) impossible
+splitLVinto  0 k any = [] # any
+splitLVinto  n 0 any = (rewrite sym $ plusZeroRightNeutral n in any) # []
+splitLVinto (S m) (S r) (a::as) = let as # ass = splitLVinto m (S r) (as) in (a::as) # ass
 
 --interactive test : splitQubitsAt {t = SimulatedOp} 2 (MkQubit 0 :: MkQubit 1 :: MkQubit 2 :: MkQubit 3 :: LinearTypes.Nil) 
 
@@ -332,6 +354,35 @@ applyUnitaryAbsSimulated : {n : Nat} -> {i : Nat} ->
   (1_ : (UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit) ))-> UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)
 applyUnitaryAbsSimulated q = MkUST (applyUnitaryAbs' q)
 
+
+tensorUnitaryAbs' : {n : Nat} -> {i : Nat} -> {j: Nat} ->
+  (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LPair (LVect i Qubit) (LVect j Qubit))) ->
+  (1 _ : SimulatedOp n) -> (LPair (SimulatedOp n) (LPair (LVect i Qubit) (LVect j Qubit)))
+tensorUnitaryAbs' ust (MkSimulatedOp qs v counter) = let (Builtin.(#) opOut lvect) = (UnitaryOp.runSplit' (MkSimulatedOp qs v counter) ust) in do
+ (Builtin.(#) opOut lvect)
+  
+tensorUnitaryAbsSimulated : {n : Nat} -> {i : Nat} -> {j : Nat} 
+            -> (1_ : UStateT (SimulatedOp n) (SimulatedOp  n) (LPair (LVect i Qubit) (LVect j Qubit)) )
+            -> UStateT (SimulatedOp  n) (SimulatedOp  n) (LPair (LVect i Qubit) (LVect j Qubit))
+tensorUnitaryAbsSimulated q = MkUST (tensorUnitaryAbs' q)
+{-}
+export
+tensorUnitaryAbs' : {n : Nat} -> {k : Nat} -> {i : Nat} -> {j: Nat} ->
+  (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)) -> (1_ : UStateT (SimulatedOp k) (SimulatedOp k) (LVect j Qubit)) ->
+  (1 _ : SimulatedOp (n+k)) -> (LPair (SimulatedOp (n+k)) (LVect (i+j) Qubit))
+tensorUnitaryAbs' ust1 ust2 (MkSimulatedOp qs v counter) = let 
+    nvect # kvect = splitLVinto v
+    (Builtin.(#) opOut lvect) = (UnitaryOp.run' (MkSimulatedOp  qs nvect counter) ust1) 
+    (Builtin.(#) opOut2 lvect) = (UnitaryOp.run' (MkSimulatedOp  qs kvect counter) ust2) 
+    in do
+ (Builtin.(#) opOut lvect)
+    
+export
+tensorUnitaryAbsSimulated : {n : Nat} -> {k : Nat} -> {i : Nat} -> {j: Nat} -> (1_ : (UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit) ))->
+  (1_ : (UStateT (SimulatedOp k) (SimulatedOp k) (LVect i Qubit) ))-> UStateT (SimulatedOp (n+k)) (SimulatedOp (n+k)) (LVect (i+j) Qubit)
+tensorUnitaryAbsSimulated q q2 = MkUST (tensorUnitaryAbs' q q2)
+-}
+
 private
 applyControlled' : {n : Nat} -> {i : Nat} -> (1 _ : Qubit) ->
   (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)) -> (1 _ : SimulatedOp n) -> (LPair (SimulatedOp n) (LVect (S i) Qubit))
@@ -487,6 +538,7 @@ UnitaryOp SimulatedOp where
   applyUnitaryAbs  = applyUnitaryAbsSimulated
   applyControlledU = applyControlledSimulated
   applyControlledUSplit = applyControlledSimulatedSplit
+  tensorUnitaryAbs = tensorUnitaryAbsSimulated
   reCombineAbs = reCombineAbsSimulated
   run          = run' 
   runSplit = runSplit'
