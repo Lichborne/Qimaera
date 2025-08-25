@@ -52,7 +52,6 @@ public export
 isInjective : Nat -> Vect n Nat -> Bool
 isInjective m v = allSmaller v m && allDifferent v
 
-
 |||Returns the element at index k in a vector
 public export
 index : (k : Nat) -> Vect n Nat -> {auto prf : (k < n) = True} -> Nat
@@ -68,6 +67,7 @@ public export
 indexLTL : (k : Nat) -> (1_: Vect n Nat) -> {auto prf : LT k n} -> LFstPair (Vect n Nat) Nat
 indexLTL Z (x::xs) {prf} = (x::xs) # x
 indexLTL (S k) (x::xs) {prf} = let (qs # m) = indexLTL k xs {prf = fromLteSucc prf} in (x :: qs) # m
+
 
 |||Returns the vector [1,2,...,n]
 public export

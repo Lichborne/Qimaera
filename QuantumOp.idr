@@ -114,12 +114,37 @@ mergeLVects (xs) [] = mergeVects (toVectQ xs) []
 mergeLVects (xs) (ys) = mergeVects (toVectQ xs) (toVectQ ys)
 
 ||| Applying a circuit to some qubits
-private
+{-private
 applyUnitary' : {n : Nat} -> {i : Nat} ->
   (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)) -> (1 _ : SimulatedOp n) -> R (LPair (SimulatedOp n) (LVect i Qubit))
-applyUnitary' ust (MkSimulatedOp qs v counter) = let (Builtin.(#) opOut lvect) = (UnitaryOp.run' (MkSimulatedOp qs v counter) ust) in do
+applyUnitary' ust (MkSimulatedOp qs un v counter) = let (Builtin.(#) opOut lvect) = (UnitaryOp.run' (MkSimulatedOp qs un v counter) ust) in do
   pure1 (Builtin.(#) opOut lvect)
-
+-}
+applyUnitary' : {n : Nat} -> {i : Nat} -> ( 1 _ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit) ) -> (1 _ : SimulatedOp n) -> R (LPair (SimulatedOp n) (LVect i Qubit))
+applyUnitary' ust (MkSimulatedOp qs un v counter) = 
+  let (opOut # lvect) = (UnitaryOp.run' (MkSimulatedOp qs un v counter) ust) in
+  let --(qs # v') # ind = listIndices opOut lvect 
+      qs2 = applyCirc (toVectN v) un opOut
+  in pure1 (Builtin.(#) qs2  lvect) where
+    applyCirc : Vect n Nat -> Unitary n -> (1 _ : SimulatedOp n) -> SimulatedOp n
+    applyCirc v IdGate qst = qst
+    applyCirc v (H {prf} j g) st = 
+      let k = indexLT {prf} j v 
+          h = simpleTensor matrixH n k
+          MkSimulatedOp qst urest q counter = applyCirc v g st
+      in MkSimulatedOp (h `matrixMult` qst) IdGate q counter
+    applyCirc v (P p j g) st = 
+      let k = indexLT j v
+          ph = simpleTensor (matrixP p) n k
+          MkSimulatedOp qst urest q counter = applyCirc v g st
+      in MkSimulatedOp (ph `matrixMult` qst) IdGate q counter
+    applyCirc v (CNOT c t g) st = 
+      let kc = indexLT c v
+          kt = indexLT t v
+          cn =  tensorCNOT n kc kt
+          MkSimulatedOp qst urest q counter = applyCirc v g st
+      in MkSimulatedOp (cn `matrixMult` qst) IdGate q counter
+    
 ||| Apply a unitary circuit to a SimulatedOp Alt
 export
 applyUnitarySimulated : {n : Nat} -> {i : Nat} ->
@@ -131,7 +156,7 @@ applyUnitarySimulated ust = MkQST (applyUnitary' ust)
 private
 applyUnitaryAbs' : {n : Nat} -> {i : Nat} -> (1 _ : LVect i Qubit) ->
   (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)) -> (1 _ : SimulatedOp n) -> R (LPair (SimulatedOp n) (LVect i Qubit))
-applyUnitaryAbs' lvectIn ust (MkSimulatedOp qs v counter) = let (Builtin.(#) opOut lvect) = (UnitaryOp.run' (MkSimulatedOp qs v counter) ust) in do
+applyUnitaryAbs' lvectIn ust (MkSimulatedOp qs un v counter) = let (Builtin.(#) opOut lvect) = (UnitaryOp.run' (MkSimulatedOp qs un v counter) ust) in do
   pure1 (Builtin.(#) opOut (mergeLVects lvect lvectIn))
 
 ||| Apply a unitary circuit to a SimulatedOp
@@ -146,7 +171,7 @@ private
 measure' : {n : Nat} -> (i : Nat) ->
            (1 _ : SimulatedOp (S n)) ->
            R (LFstPair (SimulatedOp n) Bool)
-measure' {n} i (MkSimulatedOp v w counter) = do
+measure' {n} i (MkSimulatedOp v un w counter) = do
   let projector0 = simpleTensor matrixKet0Bra0 (S n) i
   let projection0 = projector0 `matrixMult` v
   let norm20 = normState2 projection0
@@ -158,10 +183,10 @@ measure' {n} i (MkSimulatedOp v w counter) = do
   if randnb < norm20
      then do
        let proj = multScalarMatrix (inv (sqrt norm20) :+ 0) projection0
-       pure1 (MkSimulatedOp (projectState {n} proj i False) newQubits counter # False)
+       pure1 (MkSimulatedOp (projectState {n} proj i False) IdGate newQubits counter # False)
      else do
        let proj = multScalarMatrix (inv (sqrt norm21) :+ 0) projection1
-       pure1 (MkSimulatedOp (projectState {n} proj i True) newQubits counter # True)
+       pure1 (MkSimulatedOp (projectState {n} proj i True) IdGate newQubits counter # True)
 
 ||| Auxiliary function for measurements
 private
@@ -185,10 +210,10 @@ export
 newQubitsSimulated : (p : Nat) -> QStateT (SimulatedOp n) (SimulatedOp (n+p)) (LVect p Qubit)
 newQubitsSimulated p = MkQST (newQubits' p) where
   newQubits' : (q : Nat) -> (1 _ : SimulatedOp m) -> R (LPair (SimulatedOp (m + q)) (LVect q Qubit))
-  newQubits' q (MkSimulatedOp qs v counter) =
+  newQubits' q (MkSimulatedOp qs un v counter) =
     let s' = toTensorBasis (ket0 q)
         (qubits # v') = newQubitsPointers q counter
-    in pure1 (MkSimulatedOp (tensorProductVect qs s') (v ++ v') (counter + q) # qubits)
+    in pure1 (MkSimulatedOp (tensorProductVect qs s') ( un # IdGate )  (v ++ v') (counter + q) # qubits)
 
 
 
@@ -263,7 +288,7 @@ export
 newQubitsSimulated : (p : Nat) -> QStateT (SimulatedOp n) (SimulatedOp (n+p)) (LVect p Qubit)
 newQubitsSimulated p = MkQST (newQubits' p) where
   newQubits' : (q : Nat) -> (1 _ : SimulatedOp m) -> R (LPair (SimulatedOp (m + q)) (LVect q Qubit))
-  newQubits' q (MkSimulatedOp qs v counter) =
+  newQubits' q (MkSimulatedOp qs un v counter) =
     let s' = toTensorBasis (ket0 q)
         (qubits # v') = newQubitsPointers q counter
     in pure1 (MkSimulatedOp (tensorProductVect qs s') (v `pp` v') (counter + q) # qubits)
@@ -287,7 +312,7 @@ bang io = io >>= \ a => pure1 (MkBang a)
 export
 runSimulated : QStateT (SimulatedOp 0) (SimulatedOp 0) (Vect n Bool) -> IO (Vect n Bool)
 runSimulated s = LIO.run (do
-  ((MkSimulatedOp st w c) # v) <- runQStateT (MkSimulatedOp [[1]] [] 0) s
+  ((MkSimulatedOp st un w c) # v) <- runQStateT (MkSimulatedOp [[1]] IdGate [] 0) s
   case v of 
        [] => pure []
        (x :: xs) => pure (x :: xs))

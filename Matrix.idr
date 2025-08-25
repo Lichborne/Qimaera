@@ -243,6 +243,11 @@ neutralIdPow : (n : Nat) -> Matrix (power 2 n) 1
 neutralIdPow n = toTensorBasis (ket1 n)
 
 export
+controlUnitary : {n:Nat} -> Matrix n n -> Matrix (2*n) (2*n)
+controlUnitary {n} unitaryIn = (tensorProduct matrixKet0Bra0 (matrixId n)) `addMatrix` (tensorProduct matrixKet0Bra0 (unitaryIn))
+
+
+export
 inv : Double -> Double
 inv x = if x == 0 then 0 else 1/x
 

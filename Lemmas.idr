@@ -268,6 +268,7 @@ export
 lteSSk : {k:Nat} -> LTE (S (S k)) (S (S k + (S k)))  
 lteSSk = LTESucc (lteSk {k = k})
 
+export
 lteSkS : {k:Nat} -> LTE (S (S k)) (S k + S (S k)) 
 lteSkS = rewrite sym $ plusSuccRightSucc (S k) (S k) in (lteSSk {k = k})
 
@@ -599,6 +600,13 @@ distributeDupedLVect [] = [] # []
 distributeDupedLVect (MkQubit k :: xs) = 
   let (q # v) = distributeDupedLVect xs in
   (MkQubit k :: q ) # (MkQubit k :: v)
+
+export
+distributeDupedLVectVect : (1 _ : LVect i Qubit) -> LFstPair (LVect i Qubit) (Vect i Nat) 
+distributeDupedLVectVect [] = [] # []
+distributeDupedLVectVect (MkQubit k :: xs) = 
+  let (q # v) = distributeDupedLVectVect xs in
+  (MkQubit k :: q ) # (k :: v)
   
 {-
 export

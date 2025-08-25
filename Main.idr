@@ -23,6 +23,11 @@ import QAOA
 import Graph
 import Examples
 import RUS
+import Matrix
+--import UnitarySimulated
+--import UnitaryNoPrf
+--import ModularExponentiation
+
 
 -- %default total
   
@@ -58,7 +63,163 @@ testVQE = do
   VQE {t = SimulatedOp} 2 hamiltonian 5 10 5
 
 
+||| Phase gate with phase 2 pi / (2^m)
+Rm : Nat -> Unitary 1
+Rm m = PGate (2 * pi / (pow 2 (cast m)))
+
+
+||| Controlled phase gate with phase 2 pi / (2^m)
+cRm : Nat -> Unitary 2
+cRm m = controlled (Rm m)
+||| Auxiliary function for QFT : builds the recursive pattern
+|||
+||| n -- number of qubits
 export
+qftRec : (n : Nat) -> Unitary n
+qftRec 0 = IdGate
+qftRec 1 = HGate
+qftRec (S (S k)) =   let t1 = (qftRec (S k)) # IdGate
+  in rewrite sym $ lemmaplusOneRight k in apply (Main.cRm (S (S k))) t1 [S k, 0] 
+
+||| QFT unitary circuit for n qubits
+|||
+||| n -- number of qubits
+export
+qft : (n : Nat) -> Unitary n
+qft 0 = IdGate
+qft (S k) = 
+  let g = qftRec (S k)
+      h = (IdGate {n = 1}) # (qft k)
+  in h . g
+   
+
+
+qftAbsTest : LPair (SimulatedOp 4) (LVect 4 Qubit)
+qftAbsTest = let 
+    a = (MkQubit 0 :: MkQubit 1 :: MkQubit 2 :: [MkQubit 3])
+    in run' (MkSimulatedOp {n = 4} (neutralIdPow 4) IdGate a 4 ) (do
+            out <- qftUAbs {i = 4} {n = 4} (toLVectQQ a)
+            pure out)
+
+qftAbsTestIo : IO ()
+qftAbsTestIo = let
+  (MkSimulatedOp qs un vect counter) # lvect = qftAbsTest
+  in
+    do
+      d <- draw un
+      eo <- exportToQiskit "qftAbs.py" un
+      pure () 
+
+qftTest : LPair (SimulatedOp 4) (LVect 4 Qubit)
+qftTest = let 
+    a = (MkQubit 0 :: MkQubit 1 :: MkQubit 2 :: [MkQubit 3])
+    in run' (MkSimulatedOp (neutralIdPow 4) IdGate a 4 {n=4}) (do
+            out <- qftU (toLVectQQ a)
+            pure out)
+            
+qftTestIo : IO ()
+qftTestIo = let
+  (MkSimulatedOp qs un vect counter) # lvect = qftTest
+  in
+    do
+      d <- draw un
+      eo <- exportToQiskit "qft.py" un
+      eo <- exportToQiskit "ogqft.py" (qft 4)
+      pure () 
+{-
+adderTest : LPair (SimUnitaryNoPrfOp 3) (LVect 7 Qubit)
+adderTest = let 
+        a = (MkQubit 0 :: MkQubit 1 ::[MkQubit 2])
+        b = (MkQubit 3 :: MkQubit 4  :: MkQubit 5 :: [MkQubit 6])
+        in 
+          runUnitarySim (MkSimUnitaryNoPrfOp IdGate {n=3}) (do
+            out <-  inPlaceQFTAdder2 a b
+            pure out)
+                
+adderTestIo : IO ()
+adderTestIo = let
+  (MkSimUnitaryNoPrfOp uni) # lvect = adderTest
+  in
+    do
+      d <- draw uni
+      eo <- exportToQiskit "adder.txt" uni
+      pure () 
+      
+
+encodingTest : LPair (SimUnitaryNoPrfOp 5) (LVect (5) Qubit)
+encodingTest = let 
+        p = [PauliX, PauliY, PauliZ, PauliI]
+        qs = (MkQubit 0 :: MkQubit 1 :: MkQubit 2 :: MkQubit 3 :: [MkQubit 4])
+        in 
+          runUnitarySim (MkSimUnitaryNoPrfOp IdGate {n=5}) (do
+            out <- encodingUnitaryOp p qs
+            pure out)
+
+encodingTestU : Unitary 5
+encodingTestU = let 
+        p = [PauliX, PauliY, PauliZ, PauliI]
+        in 
+        encodingUnitary p 
+
+encodingTestIo : IO ()
+encodingTestIo = let
+  (MkSimUnitaryNoPrfOp uni) # lvect = encodingTest
+  in
+    do
+      eo <- exportToQiskit "circ2.txt" uni
+      d <- draw uni
+      d2 <- draw encodingTestU
+      pure () 
+
+modularTest : LPair (SimUnitaryNoPrfOp 5) (LPair (LVect (3 + 5 + 5 + 5 + 5) Qubit) (LVect (5) Qubit))
+modularTest = let 
+        c = [MkQubit 0] --- recall that UnitaryOp can only ever get qubits from quantumOp, so we dont have to worry about whether the qubits will be distinct
+        ancilla = [MkQubit 1]
+        ans = (MkQubit 2 :: MkQubit 3 :: MkQubit 4 :: MkQubit 5 :: [MkQubit 6])
+        xs = (MkQubit 7 :: MkQubit 8 :: MkQubit 9 :: MkQubit 10 :: [MkQubit 11])
+        asnmodinv = (MkQubit 12 :: MkQubit 13 :: MkQubit  14 :: MkQubit 15 :: [MkQubit 16])
+        bigNs = (MkQubit 17 :: MkQubit 18 :: MkQubit 19 :: MkQubit 20 :: [MkQubit 21])
+        nils = (MkQubit 22 :: MkQubit 23 :: MkQubit 24 :: MkQubit 25 :: MkQubit 26 :: [MkQubit 27])
+        in 
+          runSplitUnitarySim (MkSimUnitaryNoPrfOp IdGate {n=5}) (do
+            out <-  inPlaceModularExponentiation c ancilla (xs) (ans) (asnmodinv) (bigNs) (nils)
+            pure out)     
+          
+modularTestIo : IO ()
+modularTestIo = let
+  (MkSimUnitaryNoPrfOp uni) # lvect = modularTest
+  in
+    do
+      d <- draw uni
+      eo <- exportToQiskit "modular.txt" uni
+      pure () 
+
+modularTest : LPair (SimUnitaryNoPrfOp 5) (LPair (LVect (3 + 5 + 5 + 5 + 5) Qubit) (LVect (5) Qubit))
+modularTest = let 
+        c = [MkQubit 0] --- recall that UnitaryOp can only ever get qubits from quantumOp, so we dont have to worry about whether the qubits will be distinct
+        ancilla = [MkQubit 1]
+        ans = (MkQubit 2 :: MkQubit 3 :: MkQubit 4 :: MkQubit 5 :: [MkQubit 6])
+        xs = (MkQubit 7 :: MkQubit 8 :: MkQubit 9 :: MkQubit 10 :: [MkQubit 11])
+        asnmodinv = (MkQubit 12 :: MkQubit 13 :: MkQubit  14 :: MkQubit 15 :: [MkQubit 16])
+        bigNs = (MkQubit 17 :: MkQubit 18 :: MkQubit 19 :: MkQubit 20 :: [MkQubit 21])
+        nils = (MkQubit 22 :: MkQubit 23 :: MkQubit 24 :: MkQubit 25 :: MkQubit 26 :: [MkQubit 27])
+        in 
+          runSplitUnitarySim (MkSimUnitaryNoPrfOp IdGate {n=5}) (do
+            out <-  inPlaceModularExponentiation c ancilla (xs) (ans) (asnmodinv) (bigNs) (nils)
+            pure out)     
+
+modularTestIo : IO ()
+modularTestIo = let
+  (MkSimUnitaryNoPrfOp uni) # lvect = modularTest
+  in
+    do
+      d <- draw uni
+      eo <- exportToQiskit "modular.txt" uni
+      pure () 
+-}
+
+
+public export
 main : IO ()
 main = do
 
@@ -66,8 +227,8 @@ main = do
   drawExamples
 
   -- Draw the Quantum Fourier Transform for n = 3
---  putStrLn "\n\n\nQuantum Fourier Transform for n = 3"
---  draw (qft 3)
+  --  putStrLn "\n\n\nQuantum Fourier Transform for n = 3"
+  --  draw (qft 3)
 
 
   -- Execute the coin toss example
@@ -76,21 +237,24 @@ main = do
 
   -- Repeat until success
   putStrLn "\nTest 'Repeat Until Success'. Probability to measure '1' is 2/3 for this example."
-  testMultipleRUS 10000
+  --testMultipleRUS 10000
 
   -- VQE
---  putStrLn "\nSmall test with VQE"
---  r <- testVQE
---  putStrLn $ "result from VQE : " ++ show r
+  --  putStrLn "\nSmall test with VQE"
+  --  r <- testVQE
+  --  putStrLn $ "result from VQE : " ++ show r
 
   -- QAOA
-  putStrLn "\nSmall test with QAOA"
-  cut <- testQAOA
-  putStrLn $ "result from QAOA : " ++ show cut
-
+  putStrLn "\nSmall test with Encoding in VQE"
+  --cut <- testQAOA
+  --putStrLn $ "result from QAOA : " ++ show cut
+  --k <- encodingTestIo
+  --ast <- adderTestIo
+  abs <-qftAbsTestIo
+  normie <- qftTestIo
   pure ()
 
 
-  
+
 
 

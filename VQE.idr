@@ -16,6 +16,8 @@ import Qubit
 import Lemmas
 import UnitaryOp
 import UStateT
+--import UnitarySimulated
+--import UnitaryNoPrf
 
 %search_timeout 1000
 
@@ -132,40 +134,57 @@ Hamiltonian n = List (Double, PauliBasis n)
 -- The value of the energy <psi|H|psi> can be computed by applying a unitary operator U_H to |psi> and mesuring the first qubit
 -- Here the operator U_H uses one more  qubits than H. It is possible to use the exact same number of qubits, but the code is easier this way.
 
-
+trial : (n: Nat) -> Unitary n
+trial Z = IdGate
+trial (S k) = H 0 ((S k) IdGate)
+trial (S (S k)) = CNOT 0 1 (H 1 (IdGate))
 ||| With a tensor product of Pauli matrices, compute the corresponding unitary operator U_H
 |||
 ||| n      -- number of qubits
 ||| h      -- vector that represents the tensor product of Pauli matrices
 ||| output -- U_h
+export
 encodingUnitary : {n : Nat} -> (h : PauliBasis n) -> Unitary (S n)
 encodingUnitary [] = IdGate
 encodingUnitary {n = S k} (PauliI :: xs) = rewrite sym $ lemmaplusOneRight k in (encodingUnitary xs) # IdGate {n=1}
 encodingUnitary {n = S k} (PauliX :: xs) =  let p1 = lemmakLTSk k
   in rewrite sym $ lemmaplusOneRight k in  CNOT (S k) 0 (H (S k) ((encodingUnitary xs) # IdGate {n=1}))
 encodingUnitary {n = S k} (PauliY :: xs) =  let p1 = lemmakLTSk k
-  in rewrite sym $ lemmaplusOneRight k in CNOT (S k) 0 (H (S k) (S (S k) ((encodingUnitary xs) # IdGate {n=1})))
+  in rewrite sym $ lemmaplusOneRight k in CNOT (S k) 0 (H (S k) ((encodingUnitary xs) # IdGate {n=1})) 
 encodingUnitary {n = S k} (PauliZ :: xs) = let p1 = lemmakLTSk k
   in rewrite sym $ lemmaplusOneRight k in CNOT (S k) 0 ((encodingUnitary xs) # IdGate {n=1})
 
-encodingUnitaryOp : UnitaryOp t => {n : Nat} -> {i : Nat} -> (h : PauliBasis i) -> (1_ : LVect (i) Qubit) -> (1_ : LVect 1 Qubit) 
-                              -> UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect 1 Qubit))
-encodingUnitaryOp [] qs last = pure $ qs # last
-encodingUnitaryOp {i = S k} (PauliI :: xs) (q::qs) last = do
-        (q::qs) # drop <- splitLastUtil (q::qs)
-        (q::qs) # [drop] <- (encodingUnitaryOp xs (q::qs) drop)
+||| UnitaryOp version in the structure that is natural to UnitaryOp for this problem
+export
+encodingUnitaryOp: UnitaryOp t => {n : Nat} -> {i : Nat} -> (h : PauliBasis i) -> (1_ : LVect (S i) Qubit)
+                              -> UStateT (t n) (t n) ((LVect (S i) Qubit)) 
+encodingUnitaryOp {n = n} [] [] impossible
+encodingUnitaryOp {i = Z} {n = n} [] (last::ls) = pure $ (last::ls)
+encodingUnitaryOp {i = S k} {n = n} (PauliI :: xs) (q::qs) = do --- for some reason, idris needs the alst argument to also be in this form
+        (qs) # [drop] <- UnitaryOp.splitLastUtil (q::qs) 
+        (q::qs) <- (encodingUnitaryOp xs (qs)) 
         combined <- reCombineSingleR (q::qs) drop
-        pure $ combined # last
-encodingUnitaryOp {i = S k} (PauliX :: xs) (q::qs) last = do
-        (q::qs) # drop <- splitLastUtil (q::qs) 
-        (target::qs) # [qx] <- (encodingUnitaryOp xs (q::qs) drop)
-        [qxH] <- applyH qx
-        (qxf::[first]) <- applyCNOT qxH target  -- CNOT (S k) 0 (H (S k) ((encodingUnitary xs) # IdGate {n=1}))
+        pure $ combined 
+encodingUnitaryOp {i = S k}  {n = n} (PauliX :: xs) (q::qs)= do  -- CNOT (S k) 0 (H (S k) ((encodingUnitary xs) # IdGate {n=1}))
+        (qs) # [drop] <- splitLastUtil (q::qs) 
+        (target::qs) <- (encodingUnitaryOp xs (qs) )
+        [qxH] <- applyH drop
+        (qxf::[first]) <- applyCNOT qxH target  
         ret <- reCombineSingleR (first::qs) qxf
-        pure $ ret # last
-encodingUnitaryOp {i = S k} (PauliY :: xs) (q::qs) last = ?we -- CNOT (S k) 0 (H (S k) (S (S k) ((encodingUnitary xs) # IdGate {n=1})))
-encodingUnitaryOp {i = S k} (PauliZ :: xs) (q::qs) last = ?wer-- CNOT (S k) 0 ((encodingUnitary xs) # IdGate {n=1})  
-
+        pure $ ret 
+encodingUnitaryOp {i = S k} {n = n} (PauliY :: xs) (q::qs)= do -- CNOT (S k) 0 (H (S k) (S (S k) ((encodingUnitary xs) # IdGate {n=1})))
+        (qs) # [drop] <- splitLastUtil (q::qs) 
+        (target::qs) <- (encodingUnitaryOp xs (qs))
+        [qxH] <- applyH drop
+        (qxf::[first]) <- applyCNOT qxH target  
+        ret <- reCombineSingleR (first::qs) qxf
+        pure $ ret 
+encodingUnitaryOp {i = S k} {n = n}  (PauliZ :: xs) (q::qs)= do  -- CNOT (S k) 0 ((encodingUnitary xs) # IdGate {n=1})  
+        (qs) # [drop] <- splitLastUtil (q::qs) 
+        (target::qs) <- (encodingUnitaryOp xs (qs))
+        (qxf::[first]) <- applyCNOT drop target  
+        ret <- reCombineSingleR (first::qs) qxf
+        pure $ ret 
 -- the next function computes <psi|H|psi>, for H a tensor product of Pauli Matrices
 -- This is the function that needs to run the quantum circuit
 -- As explained above, to obtain <psi|H|psi>, we produce a circuit for U_H|psi> and then measure the first qubit
@@ -183,14 +202,15 @@ encodingUnitaryOp {i = S k} (PauliZ :: xs) (q::qs) last = ?wer-- CNOT (S k) 0 ((
 ||| nSamples -- the number of time we sample
 ||| circuit  -- the state |psi>
 ||| output   -- computed energy
+ -- THIS IS NOT , idris is simpy being daft 
 computeEnergyPauli : UnitaryOp t => QuantumOp t => (n : Nat) -> (p : PauliBasis n) -> (nSamples : Nat) -> (circuit : Unitary n) -> IO Double
 computeEnergyPauli n p 0 circuit = pure 0
 computeEnergyPauli n p (S nSamples) circuit = do
-  let encodingCircuit = encodingUnitary p
+  --let encodingCircuit = encodingUnitary p
   (b :: _) <- runQ (do
                qs <- newQubits {t} (S n)
                qs <- applyUnitaryQ (applyUnitary qs (tensor (IdGate {n=1}) circuit))
-               qs <- applyUnitaryQ (applyUnitary qs encodingCircuit)
+               qs <- applyUnitaryQ ((encodingUnitaryOp p qs))
                measureAll qs
                )
   rest <- computeEnergyPauli {t} n p nSamples circuit
@@ -207,6 +227,7 @@ computeEnergyPauli n p (S nSamples) circuit = do
 ||| nSamples -- the number of time we sample for each component of H
 ||| circuit  -- the state |psi>
 ||| output   -- computed energy
+ -- THIS IS NOT , idris is simpy being daft 
 computeEnergy : UnitaryOp t => QuantumOp t => (n : Nat) -> (h : Hamiltonian n) -> (nSamples : Nat) -> (circuit : Unitary n) -> IO Double
 computeEnergy n [] nSamples circuit = pure 0
 computeEnergy n ((r, p) :: hs) nSamples circuit = do
@@ -279,6 +300,7 @@ classicalOptimisation depth h previous_info = do
 ||| k        -- number of iterations of the algorithm
 ||| depth    -- depth of the ansatz circuit
 ||| output   -- all observed information : rotation angles and computed energies
+ -- THIS IS NOT , idris is simpy being daft 
 VQE': UnitaryOp t => QuantumOp t =>
        (n : Nat) -> (h : Hamiltonian n) -> (nSamples : Nat) -> (k : Nat) -> (depth : Nat) ->
        IO (Vect k (RotationAnglesMatrix depth n, RotationAnglesMatrix depth n, Double))
@@ -305,6 +327,7 @@ VQE' n h nSamples (S k) depth = do
 ||| depth    -- depth of the ansatz circuit
 ||| output   -- the lowest computed energy
 export
+ -- THIS IS NOT , idris is simpy being daft 
 VQE : UnitaryOp t => QuantumOp t =>
       (n : Nat) -> (h : Hamiltonian n) -> (nSamples : Nat) -> (k : Nat) -> (depth : Nat) ->
       IO Double
@@ -315,4 +338,12 @@ VQE n h nSamples k depth = do
 
 
 
+
+export
+
+testVQE : IO Double
+testVQE = do
+  putStrLn "Test VQE"
+  let hamiltonian = [(2, [PauliX, PauliY]),(3,[PauliZ, PauliI])]
+  VQE {t = SimulatedOp} 2 hamiltonian 1 2 1
 

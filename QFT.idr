@@ -29,21 +29,21 @@ public export
 cRm : Nat -> Unitary 2
 cRm m = controlled (Rm m)
 
-||| Builds the UnitaryOp (abstract) version of Rm
-RmAbs : UnitaryOp t => {n:Nat} -> Nat -> (1_: Qubit) -> UStateT (t n) (t n) (LVect 1 Qubit)
-RmAbs m q = do
+||| Builds the UnitaryOp with one's opwn version of a unitary; in our case this is of course Unitary 
+RmOwn : UnitaryOp t => {n:Nat} -> Nat -> (1_: Qubit) -> UStateT (t n) (t n) (LVect 1 Qubit)
+RmOwn m q = do
   q <- applyP (2 * pi / (pow 2 (cast m))) q
   pure q
 
 ||| Builds the UnitaryOp (abstract) version of cRm
 cRmAbs : UnitaryOp t => {n:Nat} -> Nat -> (1_: Qubit) -> (1_: Qubit) -> UStateT (t n) (t n) (LVect 2 Qubit)
-cRmAbs m c u = applyControlledU c (RmAbs m u)
+cRmAbs m c u = applyControlledAbs c (RmAbs m u)
 
 ||| Builds the rotation operator for the QFT inside UnitaryOp using the unitaries built with Unitary
 rotate : UnitaryOp t => {n:Nat} -> {i:Nat} -> (m:Nat) -> (1_ : Qubit) -> (1 _ : LVect i Qubit) -> UStateT (t (n)) (t (n)) (LVect (S i) Qubit)
 rotate m q [] = pure (q :: [])
 rotate {n} {i = (S k)} m q (p::ps) = do
-        (q' :: [p']) <- applyUnitary (q :: [p]) (cRm m)
+        (p' :: [q']) <- applyUnitary (p :: [q]) (cRm m)
         (q'' :: ps') <- rotate (S m) q' ps
         pure (q'':: p':: ps')
 
@@ -67,7 +67,7 @@ rotateAbs : UnitaryOp t => {n:Nat} -> {i:Nat} -> (m:Nat) -> (1_ : Qubit) -> (1 _
 rotateAbs m q [] = pure (q :: [])
 rotateAbs {n} {i = (S k)} m q (p::ps) = do
         (q' :: [p']) <- applyUnitaryAbs (cRmAbs m q p)
-        (q'' :: ps') <- rotateAbs (S m) q' ps
+        (q'' :: ps') <- applyUnitaryAbs $ rotateAbs (S m) q' ps
         pure (q'':: p':: ps')
 
 ||| Builds the *abstract* operator for the QFT inside UnitaryOp using rotation
@@ -105,7 +105,7 @@ rotateInv : UnitaryOp t => {n:Nat} -> {i:Nat} -> (m:Nat) -> (1_ : Qubit) -> (1 _
 rotateInv m q [] = pure (q :: [])
 rotateInv {n} {i = (S k)} m q (p::ps) = do
         (q' :: ps') <- rotate (S m) q ps
-        (q'' :: [p']) <- applyUnitary (q' :: [p]) (adjoint (cRm m))
+        (p' :: [q'']) <- applyUnitary (p :: [q']) (adjoint (cRm m))
         pure (q'':: p':: ps')
 
 ||| Builds the whole operator for the QFT inside UnitaryOp using rotation using the unitaries built with Unitary
