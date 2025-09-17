@@ -568,7 +568,7 @@ lemmaIsDiffGen m (x::xs) = case isLT m x of
    Yes prfLeft => IsDiffSucc (Left prfLeft) (lemmaIsDiffGen m xs)
    No prfNo1 => case isLT x m of
      Yes prfRight =>  IsDiffSucc (Right prfRight) (lemmaIsDiffGen m xs)
-     No prfNo2 => assert_total $ idris_crash ("There exists no automatic proof that the Vector " ++ show (x::xs) ++ " is Injective (not all different) " ++ show m ++ " is not smaller than " ++ show x)
+     No prfNo2 => assert_total $ idris_crash ("There exists no automatic proof that the Vector " ++ show (x::xs) ++ " is Injective (not all different) " ++ show m ++ " is not different to " ++ show x)
      
    
 

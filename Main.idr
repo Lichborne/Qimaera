@@ -29,6 +29,7 @@ import Matrix
 import UnitarySimulated
 import UnitaryNoPrfSim
 import ModularExponentiation
+import SimulatedCircuit
 
 
 
@@ -171,15 +172,26 @@ adderTest = let
           runUnitaryNoPrfSim (IdGate {n=3}) (do
             out <- inPlaceQFTAdder2 a b
             pure out)         
+
+adderTestQ : IO (Vect 7 Bool)
+adderTestQ = runQ {t = SimulatedCircuit} (do
+               a <- newQubits 3
+               b <- newQubits 4 
+               outapp <- applyUnitaryQ (reCombineAbs $ inPlaceQFTAdder a b)
+               out <- measureAll (outapp)
+               pure out )
             
 adderTestIo : IO ()
-adderTestIo = let
+adderTestIo = do
+  any <- adderTestQ
+  pure ()
+{- let
   (uni) # lvect = adderTest
   in
     do
       d <- draw uni
       eo <- exportToQiskit "adder.py" uni
-      pure () 
+    pure () -}
       
 
 encodingTest : LPair (Unitary 5) (LVect (5) Qubit)
@@ -291,7 +303,7 @@ main = do
   putStrLn "\nSmall test with Encoding in VQE"
   cut <- testQAOA
   putStrLn $ "result from QAOA : " ++ show cut
-  k <- encodingTestIo
+  --k <- encodingTestIo
   ast <- adderTestIo
   abs <-qftAbsTestIo
   normie <- qftTestIo

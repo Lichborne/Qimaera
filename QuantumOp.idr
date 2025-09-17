@@ -221,10 +221,16 @@ reCalculateCounter {n = S k} (x::xs) = smallestMissing (sort (toVectN (x::xs)))
 public export
 newQubitsPointers : {n:Nat} -> (p : Nat) -> (counter : Nat) -> (v: Vect n Qubit) -> LFstPair (LVect p Qubit) (Pair (Vect p Qubit) Nat)
 newQubitsPointers 0 counter _ = ([] # ([], counter))
-newQubitsPointers {n} (S p) counter xs= let newcounter = (reCalculateCounter (MkQubit counter :: xs)) in
-  let (q # (v, newcounter)) = newQubitsPointers p newcounter xs
+newQubitsPointers {n} (S p) counter xs = let newcounter = (reCalculateCounter (MkQubit counter :: xs)) in
+  let (q # (v, newcounter)) = newQubitsPointers p newcounter (MkQubit counter :: xs)
   in (MkQubit counter :: q) #  ((MkQubit counter :: v), newcounter)
 
+private 
+newQubitsPointersOld : (p : Nat) -> (counter : Nat) -> LFstPair (LVect p Qubit) (Vect p Qubit)
+newQubitsPointersOld 0 _ = ([] # [])
+newQubitsPointersOld (S p) counter = 
+  let (q # v) = newQubitsPointersOld p (S counter)
+  in (MkQubit counter :: q) #  (MkQubit counter :: v)  
 
 ||| Add new qubits to a Quantum State
 export
@@ -233,7 +239,7 @@ newQubitsSimulated p = MkQST (newQubits' p) where
   newQubits' : (q : Nat) -> (1 _ : SimulatedOp m) -> R (LPair (SimulatedOp (m + q)) (LVect q Qubit))
   newQubits' q (MkSimulatedOp qs un v counter) =
     let s' = toTensorBasis (ket0 q)
-        (qubits # (v', newcounter)) = newQubitsPointers q counter v
+        (qubits # (v', newcounter))= newQubitsPointers q counter v
     in pure1 (MkSimulatedOp (tensorProductVect qs s') ( un # IdGate )  (v ++ v') (newcounter) # qubits)
 
 
