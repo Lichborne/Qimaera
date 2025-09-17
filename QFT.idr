@@ -11,6 +11,7 @@ import UStateT
 import QStateT
 import UnitaryLinear
 import Qubit
+import Lemmas
 --import UnitaryOpTracked
 --import QuantumOpTracked
 
@@ -29,7 +30,7 @@ public export
 cRm : Nat -> Unitary 2
 cRm m = controlled (Rm m)
 
-||| Builds the UnitaryOp with one's opwn version of a unitary; in our case this is of course Unitary 
+||| Builds the UnitaryOp with one's opwn version of a unitary; in our case this is of course UnitaryNoPrf or SimulatedOp 
 RmOwn : UnitaryOp t => {n:Nat} -> Nat -> (1_: Qubit) -> UStateT (t n) (t n) (LVect 1 Qubit)
 RmOwn m q = do
   q <- applyP (2 * pi / (pow 2 (cast m))) q
@@ -37,7 +38,10 @@ RmOwn m q = do
 
 ||| Builds the UnitaryOp (abstract) version of cRm
 cRmAbs : UnitaryOp t => {n:Nat} -> Nat -> (1_: Qubit) -> (1_: Qubit) -> UStateT (t n) (t n) (LVect 2 Qubit)
-cRmAbs m c u = applyControlledAbs c (RmAbs m u)
+cRmAbs {n = Z} m c u = pure [c, u] -- this is if t n is empty, which cannot be the case if we have two qubits
+cRmAbs {n = S k} m c u = do 
+                cu <- applyControlledAbs c (RmOwn {n = k} m u)
+                pure cu
 
 ||| Builds the rotation operator for the QFT inside UnitaryOp using the unitaries built with Unitary
 rotate : UnitaryOp t => {n:Nat} -> {i:Nat} -> (m:Nat) -> (1_ : Qubit) -> (1 _ : LVect i Qubit) -> UStateT (t (n)) (t (n)) (LVect (S i) Qubit)
@@ -66,8 +70,8 @@ qftQ i n qs = applyUnitaryQ {t=t} (qftU {t=t} {i = i} {n = n} (qs))
 rotateAbs : UnitaryOp t => {n:Nat} -> {i:Nat} -> (m:Nat) -> (1_ : Qubit) -> (1 _ : LVect i Qubit) -> UStateT (t (n)) (t (n)) (LVect (S i) Qubit)
 rotateAbs m q [] = pure (q :: [])
 rotateAbs {n} {i = (S k)} m q (p::ps) = do
-        (q' :: [p']) <- applyUnitaryAbs (cRmAbs m q p)
-        (q'' :: ps') <- applyUnitaryAbs $ rotateAbs (S m) q' ps
+        (p' :: [q']) <- cRmAbs m p q
+        (q'' :: ps') <- rotateAbs (S m) q' ps
         pure (q'':: p':: ps')
 
 ||| Builds the *abstract* operator for the QFT inside UnitaryOp using rotation
@@ -75,7 +79,7 @@ public export
 qftUAbs :  UnitaryOp t => {n:Nat} -> {i:Nat} -> (1 _ : LVect i Qubit) -> UStateT (t (n)) (t (n)) (LVect (i) Qubit)
 qftUAbs [] = pure []
 qftUAbs {n} {i = S k} (q::qs) = do
-    (q' :: Nil ) <- applyH q
+    [q']<- applyH q
     (q'' :: qs') <- rotateAbs (S (S Z)) q' qs
     qs'' <- qftUAbs qs'
     pure (q'' :: qs'')

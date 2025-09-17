@@ -16,6 +16,7 @@ import RandomUtilities
 import UnitaryOp
 import UStateT
 import Qubit
+import SimulatedCircuit
 
 %default total
 
@@ -224,5 +225,5 @@ QAOA k p graph = do
 ||| Small test
 testQAOA : IO (Cut 3)
 testQAOA = (do
-  bs <- QAOA { t = SimulatedOp } 2 2 (AddVertex (AddVertex (AddVertex (Empty) []) [True]) [True,False])
+  bs <- QAOA { t = SimulatedCircuit } 2 2 (AddVertex (AddVertex (AddVertex (Empty) []) [True]) [True,False])
   pure bs)

@@ -2,6 +2,7 @@ module Lemmas
 
 import Data.Nat
 import Data.Vect
+import Data.Fin
 import Decidable.Equality
 import Injection
 import Complex
@@ -564,10 +565,12 @@ export
 lemmaIsDiffGen : (m:Nat) -> (v: Vect n Nat) -> IsDifferentT m v
 lemmaIsDiffGen m [] = IsDiffNil
 lemmaIsDiffGen m (x::xs) = case isLT m x of
-   No prfNo1 => case isLT x m of
-     No prfNo2 => assert_total $ idris_crash "There exists no automatic proof that the Vector is Injective"
-     Yes prfRight =>  IsDiffSucc (Right prfRight) (lemmaIsDiffGen m xs)
    Yes prfLeft => IsDiffSucc (Left prfLeft) (lemmaIsDiffGen m xs)
+   No prfNo1 => case isLT x m of
+     Yes prfRight =>  IsDiffSucc (Right prfRight) (lemmaIsDiffGen m xs)
+     No prfNo2 => assert_total $ idris_crash ("There exists no automatic proof that the Vector " ++ show (x::xs) ++ " is Injective (not all different) " ++ show m ++ " is not smaller than " ++ show x)
+     
+   
 
 export 
 %hint
@@ -580,8 +583,9 @@ export
 lemmaAllSmallGen : (m:Nat) -> (v: Vect n Nat) -> AllSmallerT v m
 lemmaAllSmallGen {m} {v = []} = ASNil
 lemmaAllSmallGen {m} {v = (x::xs)} = case isLT x m of
-  No prfNo1 =>assert_total $ idris_crash "There exists no automatic proof that the Vector is Injective"
   Yes prfLT => ASSucc prfLT (lemmaAllSmallGen {m = m} {v = xs})
+  No prfNo1 =>assert_total $ idris_crash ("There exists no automatic proof that the Vector " ++ show (x::xs) ++ " is Injective (not all smaller): " ++ show x ++ " is not smaller than " ++ show m)
+  
  
 
 export 
@@ -705,7 +709,46 @@ allSmallerRangeVectDec startIndex (S k) =
 export 
 isInjectiveRangeVectDec : (startIndex : Nat) -> (length : Nat) -> IsInjectiveDec (startIndex+length) (rangeVect startIndex length)
 isInjectiveRangeVectDec i length = IsInjectiveSuccDec (allDiffRangeVectDec i length) (allSmallerRangeVectDec i length)
+
 {-}
+-- Safe indexing by Nat (returns Nothing if out of bounds)
+getAt : {n : Nat} -> Nat -> Vect n Nat -> Maybe Nat
+getAt {n} i xs = case isLT i n of 
+  Yes prf => Just (indexLT i xs) 
+  No _ => Nothing
+
+-- Half for Nat
+half : Nat -> Nat
+half Z = Z
+half k = div k 2
+
+-- Core routine: search between [start .. end] (inclusive)
+findFirstMissing : {n : Nat} -> Vect n Nat -> (start: Nat) -> (end: Nat) -> Nat
+findFirstMissing arr start end =
+  if start > end then end + 1
+  else case getAt start arr of
+    -- if a[start] != start, we found the first gap
+    Just v =>
+      if v /= start then start
+      else
+        let mid = half (start + end) in
+        case getAt mid arr of
+          Just vm =>
+            if vm == mid
+              then findFirstMissing arr (mid + 1) end
+              else findFirstMissing arr start mid
+          -- mid out of bounds: conservatively say "end + 1"
+          Nothing => end + 1
+    -- start out of bounds: conservatively say "end + 1"
+    Nothing => end + 1
+
+-- Convenience wrapper: search the whole vector range [0 .. n-1]
+findFirstMissingFull : {n : Nat} -> Vect n Nat -> Nat
+findFirstMissingFull {n} arr =
+  case n of
+    Z   => 0
+    S k => findFirstMissing arr 0 k
+
 export
 
 lemmaIsDiffGenDec : (m:Nat) -> (v: Vect n Nat) -> IsDifferentDec m v

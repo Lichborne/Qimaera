@@ -439,7 +439,7 @@ draw g =
 
 --------------------------EXPORT TO QISKIT---------------------
 
-private
+public export
 unitarytoQiskit : Unitary n -> String
 unitarytoQiskit IdGate = ""
 unitarytoQiskit (H i g) = unitarytoQiskit g ++  "qc.h(qr[" ++ show i ++ "])\nqc.barrier(qr)\n"
@@ -456,7 +456,7 @@ toQiskit g =
   "from qiskit import QuantumRegister\n" ++
   "qr = QuantumRegister(" ++ show n ++ ")\n" ++
   "qc = QuantumCircuit(qr)\n\n" ++ s ++
-  "\nqc.draw('mpl')")
+  "\nprint(qc)")
 
 |||Export a circuit to Qiskit code
 public export

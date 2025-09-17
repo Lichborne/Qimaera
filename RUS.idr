@@ -9,6 +9,7 @@ import Data.List
 import UnitaryOp
 import UStateT
 import Qubit
+import SimulatedCircuit
 
 ||| Problem: Given an input qubit |q> and a single-qubit unitary operation U,
 |||          return the state U|q>. The "Repeat Until Success" approach solves
@@ -49,7 +50,7 @@ runRUS = do
 
 export
 testRUS : IO Bool
-testRUS = runRUS {t = SimulatedOp}
+testRUS = runRUS {t = SimulatedCircuit}
 
 export
 RUS_U2 : UnitaryOp t => (1_: LVect 2 Qubit) -> (Unitary 2) -> (UStateT (t 2) (t 2) (LVect 2 Qubit))
@@ -104,7 +105,7 @@ runRUSAbs = do
 
 export
 testRUSAbs : IO Bool
-testRUSAbs = runRUS {t = SimulatedOp}
+testRUSAbs = runRUS {t = SimulatedCircuit}
 
 export
 testMultipleRUS : Nat -> IO ()

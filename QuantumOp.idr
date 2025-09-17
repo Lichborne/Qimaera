@@ -1,6 +1,7 @@
 module QuantumOp
 
 import Data.Vect
+import Data.Vect.Sort
 import Data.Nat
 import Decidable.Equality
 import System.File
@@ -25,7 +26,7 @@ import Qubit
 
 ||| The QuantumOp interface is used to abstract over the representation of a
 ||| quantum state. It is parameterised by the number of qubits it contains.
-export
+public export
 interface QuantumOp (0 t : Nat -> Type) where
 
   ||| Prepare 'p' new qubits in state |00...0>
@@ -79,7 +80,7 @@ interface QuantumOp (0 t : Nat -> Type) where
                           
   ||| Execute a quantum operation : start and finish with trivial quantum state
   ||| (0 qubits) and measure 'n' qubits in the process
-  runQ : QStateT (t 0) (t 0) (Vect n Bool) -> IO ((Vect n Bool))
+  runQ : {n:Nat} -> QStateT (t 0) (t 0) (Vect n Bool) -> IO (Vect n Bool)
 
 ----- IMPLEMENTATION OF QUANTUMSTATE: LINEAR-ALGEBRAIC SIMULATION -----------
 
@@ -128,8 +129,8 @@ applyUnitary' ust (MkSimulatedOp qs un v counter) =
   in pure1 (Builtin.(#) qs2  lvect) where
     applyCirc : Vect n Nat -> Unitary n -> (1 _ : SimulatedOp n) -> SimulatedOp n
     applyCirc v IdGate qst = qst
-    applyCirc v (H {prf} j g) st = 
-      let k = indexLT {prf} j v 
+    applyCirc v (H j g) st = 
+      let k = indexLT j v 
           h = simpleTensor matrixH n k
           MkSimulatedOp qst urest q counter = applyCirc v g st
       in MkSimulatedOp (h `matrixMult` qst) IdGate q counter
@@ -204,6 +205,26 @@ measureQubits' (x :: xs) qs = do
 
 ------- SIMULATE CIRCUITS : OPERATIONS ON QUANTUM STATES ------
 
+smallestMissing: (v: Vect n Nat) -> Nat
+smallestMissing [] = Z
+smallestMissing [Z] = S Z 
+smallestMissing [S k] = S (S k)
+smallestMissing (x::y::ys) = case decEq (S x) y of
+  Yes _ => smallestMissing (y::ys)
+  No _ => (S x)
+
+reCalculateCounter : {n:Nat} -> (v: Vect n Qubit) -> Nat
+reCalculateCounter [] = 0
+reCalculateCounter {n = S k} (x::xs) = smallestMissing (sort (toVectN (x::xs)))
+
+||| add the indices of the new qubits to the vector in the SimulatedOp
+public export
+newQubitsPointers : {n:Nat} -> (p : Nat) -> (counter : Nat) -> (v: Vect n Qubit) -> LFstPair (LVect p Qubit) (Pair (Vect p Qubit) Nat)
+newQubitsPointers 0 counter _ = ([] # ([], counter))
+newQubitsPointers {n} (S p) counter xs= let newcounter = (reCalculateCounter (MkQubit counter :: xs)) in
+  let (q # (v, newcounter)) = newQubitsPointers p newcounter xs
+  in (MkQubit counter :: q) #  ((MkQubit counter :: v), newcounter)
+
 
 ||| Add new qubits to a Quantum State
 export
@@ -212,8 +233,8 @@ newQubitsSimulated p = MkQST (newQubits' p) where
   newQubits' : (q : Nat) -> (1 _ : SimulatedOp m) -> R (LPair (SimulatedOp (m + q)) (LVect q Qubit))
   newQubits' q (MkSimulatedOp qs un v counter) =
     let s' = toTensorBasis (ket0 q)
-        (qubits # v') = newQubitsPointers q counter
-    in pure1 (MkSimulatedOp (tensorProductVect qs s') ( un # IdGate )  (v ++ v') (counter + q) # qubits)
+        (qubits # (v', newcounter)) = newQubitsPointers q counter v
+    in pure1 (MkSimulatedOp (tensorProductVect qs s') ( un # IdGate )  (v ++ v') (newcounter) # qubits)
 
 
 
@@ -310,7 +331,7 @@ bang io = io >>= \ a => pure1 (MkBang a)
 -}
 ||| Run all simulations : start with 0 qubit and measure all qubits at the end (end with 0 qubit)
 export
-runSimulated : QStateT (SimulatedOp 0) (SimulatedOp 0) (Vect n Bool) -> IO (Vect n Bool)
+runSimulated : {n:Nat} -> QStateT (SimulatedOp 0) (SimulatedOp 0) (Vect n Bool) -> IO (Vect n Bool)
 runSimulated s = LIO.run (do
   ((MkSimulatedOp st un w c) # v) <- runQStateT (MkSimulatedOp [[1]] IdGate [] 0) s
   case v of 
