@@ -98,9 +98,9 @@ qft (S k) =
 
 qftAbsTest : LPair (Unitary 4) (LVect 4 Qubit)
 qftAbsTest = let 
-    a = (MkQubit 0 :: MkQubit 1 :: MkQubit 2 :: [MkQubit 3])
+    a = mkQubitList 0 4
     in runUnitarySim (IdGate {n  = 4}) (do
-            out <- qftUAbs {i = 4} {n = 4} (toLVectQQ a)
+            out <- qftUAbs {i = 4} {n = 4} a
             pure out)
 
 qftAbsTestIo : IO ()
@@ -114,9 +114,9 @@ qftAbsTestIo = let
 
 qftTest : LPair (Unitary 4) (LVect 4 Qubit)
 qftTest = let 
-    a = (MkQubit 0 :: MkQubit 1 :: MkQubit 2 :: [MkQubit 3])
+    a = mkQubitList 0 4
     in runUnitarySim (IdGate {n  = 4}) (do
-            out <- qftU (toLVectQQ a)
+            out <- qftU a
             pure out)
             
 qftTestIo : IO ()
@@ -166,8 +166,8 @@ qftTestIo = let
 
 adderTest : LPair (UnitaryNoPrf 3) (LVect 7 Qubit)
 adderTest = let 
-        a = (MkQubit 0 :: MkQubit 1 ::[MkQubit 2])
-        b = (MkQubit 3 :: MkQubit 4  :: MkQubit 5 :: [MkQubit 6])
+        a = mkQubitList 0 3
+        b = mkQubitList 3 4
         in 
           runUnitaryNoPrfSim (IdGate {n=3}) (do
             out <- inPlaceQFTAdder2 a b
@@ -197,7 +197,7 @@ adderTestIo = do
 encodingTest : LPair (Unitary 5) (LVect (5) Qubit)
 encodingTest = let 
         p = [PauliX, PauliY, PauliZ, PauliI]
-        qs = (MkQubit 0 :: MkQubit 1 :: MkQubit 2 :: MkQubit 3 :: [MkQubit 4])
+        qs = mkQubitList 0 5
         in 
           runUnitarySim (IdGate {n=5}) (do
             out <- encodingUnitaryOp p qs
@@ -219,17 +219,13 @@ encodingTestIo = let
       d2 <- draw encodingTestU
       pure () 
 
-mkQubitList : (from:Nat) -> (i:Nat) -> LVect i Qubit
-mkQubitList Z Z = []
-mkQubitList (S k) Z = []
-mkQubitList Z (S k) = (MkQubit Z :: mkQubitList (S Z) k)     
-mkQubitList (S n) (S k) = (MkQubit (S n) :: mkQubitList (S (S n)) k)   
+
 
 ||| testing just the unitary part of modular exponentiation
 modularTest : LPair (UnitaryNoPrf 5) (LPair (LVect (3 + 3 + 3 + 3 + 3) Qubit) (LVect (3) Qubit))
 modularTest = let 
-        c = [MkQubit 0] --- recall that UnitaryOp can only ever get qubits from quantumOp, so we dont have to worry about whether the qubits will be distinct
-        ancilla = [MkQubit 1]
+        c = mkQubitList 0 1 --- recall that UnitaryOp can only ever get qubits from quantumOp, so we dont have to worry about whether the qubits will be distinct
+        ancilla = mkQubitList 1 1
         ans = mkQubitList 2 3
         xs = mkQubitList 5 3
         asnmodinv = mkQubitList 8 3
@@ -248,30 +244,6 @@ modularTestIo = let
       d <- draw uni
       eo <- exportToQiskit "modular.py" uni
       pure () 
-    {-}
-modularTest : LPair (Unitary 5) (LPair (LVect (3 + 5 + 5 + 5 + 5) Qubit) (LVect (5) Qubit))
-modularTest = let 
-        c = [MkQubit 0] --- recall that UnitaryOp can only ever get qubits from quantumOp, so we dont have to worry about whether the qubits will be distinct
-        ancilla = [MkQubit 1]
-        ans = (MkQubit 2 :: MkQubit 3 :: MkQubit 4 :: MkQubit 5 :: [MkQubit 6])
-        xs = (MkQubit 7 :: MkQubit 8 :: MkQubit 9 :: MkQubit 10 :: [MkQubit 11])
-        asnmodinv = (MkQubit 12 :: MkQubit 13 :: MkQubit  14 :: MkQubit 15 :: [MkQubit 16])
-        bigNs = (MkQubit 17 :: MkQubit 18 :: MkQubit 19 :: MkQubit 20 :: [MkQubit 21])
-        nils = (MkQubit 22 :: MkQubit 23 :: MkQubit 24 :: MkQubit 25 :: MkQubit 26 :: [MkQubit 27])
-        in 
-          runSplitUnitarySim (IdGate {n=5}) (do
-            out <-  inPlaceModularExponentiation c ancilla (xs) (ans) (asnmodinv) (bigNs) (nils)
-            pure out)     
-
-modularTestIo : IO ()
-modularTestIo = let
-  uni # lvect = modularTest
-  in
-    do
-      d <- draw uni
-      eo <- exportToQiskit "modular.py" uni
-      pure () 
-    -}
 
 
 public export
@@ -292,12 +264,12 @@ main = do
 
   -- Repeat until success
   putStrLn "\nTest 'Repeat Until Success'. Probability to measure '1' is 2/3 for this example."
-  --b <- testMultipleRUS 3
+  b <- testMultipleRUS 3
 
   -- VQE
   putStrLn "\nSmall test with VQE"
-  --r <- VQE.testVQE
-  --putStrLn $ "result from VQE : " ++ show r
+  r <- VQE.testVQE
+  putStrLn $ "result from VQE : " ++ show r
 
   -- QAOA
   putStrLn "\nSmall test with Encoding in VQE"

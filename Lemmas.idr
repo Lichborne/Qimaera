@@ -598,20 +598,7 @@ export
 lemmaIsInjectiveTk : {m: Nat -> Nat} -> {v: Nat-> Vect n Nat} -> ({k: Nat} -> IsInjectiveT (m k) (v k))
 lemmaIsInjectiveTk {m} {v} = IsInjectiveSucc (lemmaAllDiffGen {v = v k}) (lemmaAllSmallGen {m = m k} {v = v k})
 
-export
-distributeDupedLVect : (1 _ : LVect i Qubit) -> LPair (LVect i Qubit) (LVect i Qubit) 
-distributeDupedLVect [] = [] # []
-distributeDupedLVect (MkQubit k :: xs) = 
-  let (q # v) = distributeDupedLVect xs in
-  (MkQubit k :: q ) # (MkQubit k :: v)
 
-export
-distributeDupedLVectVect : (1 _ : LVect i Qubit) -> LFstPair (LVect i Qubit) (Vect i Nat) 
-distributeDupedLVectVect [] = [] # []
-distributeDupedLVectVect (MkQubit k :: xs) = 
-  let (q # v) = distributeDupedLVectVect xs in
-  (MkQubit k :: q ) # (k :: v)
-  
 {-
 export
 

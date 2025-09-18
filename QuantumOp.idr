@@ -195,42 +195,17 @@ measureQubits' : {n : Nat} -> {i : Nat} ->
                  (1 _ : LVect i Qubit) ->
                  (1 _ : SimulatedOp (i + n)) -> R (LPair (SimulatedOp n) (Vect i Bool))
 measureQubits' [] qs = pure1 (qs # [])
-measureQubits' (x :: xs) qs = do
-  let (qs' # (MkQubit k)) # y = listIndex qs x
-  (s # b) <- measure' y qs'
-  (s1 # bs) <- measureQubits' xs s
-  case bs of 
-       [] => pure1 (s1 # [b])
-       (b' :: bs') => pure1 (s1 # (b :: b' :: bs'))
+measureQubits' (x :: xs) qs = 
+  let (qs' # q) # y = listIndex qs x in
+    let (q, k) = qubitToNatPair q in 
+      do
+      (s # b) <- measure' y qs'
+      (s1 # bs) <- measureQubits' xs s
+      case bs of 
+          [] => pure1 (s1 # [b])
+          (b' :: bs') => pure1 (s1 # (b :: b' :: bs'))
 
 ------- SIMULATE CIRCUITS : OPERATIONS ON QUANTUM STATES ------
-
-smallestMissing: (v: Vect n Nat) -> Nat
-smallestMissing [] = Z
-smallestMissing [Z] = S Z 
-smallestMissing [S k] = S (S k)
-smallestMissing (x::y::ys) = case decEq (S x) y of
-  Yes _ => smallestMissing (y::ys)
-  No _ => (S x)
-
-reCalculateCounter : {n:Nat} -> (v: Vect n Qubit) -> Nat
-reCalculateCounter [] = 0
-reCalculateCounter {n = S k} (x::xs) = smallestMissing (sort (toVectN (x::xs)))
-
-||| add the indices of the new qubits to the vector in the SimulatedOp
-public export
-newQubitsPointers : {n:Nat} -> (p : Nat) -> (counter : Nat) -> (v: Vect n Qubit) -> LFstPair (LVect p Qubit) (Pair (Vect p Qubit) Nat)
-newQubitsPointers 0 counter _ = ([] # ([], counter))
-newQubitsPointers {n} (S p) counter xs = let newcounter = (reCalculateCounter (MkQubit counter :: xs)) in
-  let (q # (v, newcounter)) = newQubitsPointers p newcounter (MkQubit counter :: xs)
-  in (MkQubit counter :: q) #  ((MkQubit counter :: v), newcounter)
-
-private 
-newQubitsPointersOld : (p : Nat) -> (counter : Nat) -> LFstPair (LVect p Qubit) (Vect p Qubit)
-newQubitsPointersOld 0 _ = ([] # [])
-newQubitsPointersOld (S p) counter = 
-  let (q # v) = newQubitsPointersOld p (S counter)
-  in (MkQubit counter :: q) #  (MkQubit counter :: v)  
 
 ||| Add new qubits to a Quantum State
 export
@@ -241,7 +216,6 @@ newQubitsSimulated p = MkQST (newQubits' p) where
     let s' = toTensorBasis (ket0 q)
         (qubits # (v', newcounter))= newQubitsPointers q counter v
     in pure1 (MkSimulatedOp (tensorProductVect qs s') ( un # IdGate )  (v ++ v') (newcounter) # qubits)
-
 
 
 ||| Measure some qubits in a quantum state

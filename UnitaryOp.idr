@@ -70,6 +70,9 @@ interface UnitaryOp (0 t : Nat -> Type) where
   ||| sequence to the end
   run :  {i : Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LVect i Qubit) ) -> (LPair (t n) (LVect i Qubit))
 
+
+  --exportUnitary :  {i : Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LVect i Qubit)) -> (Unitary n)
+
   --------------------- Split Computation and Accompanying Utilities -------------------------
 
   ||| sequence to the end with split computation
@@ -175,7 +178,6 @@ splitLVinto  0 k any = [] # any
 splitLVinto  n 0 any = (rewrite sym $ plusZeroRightNeutral n in any) # []
 splitLVinto (S m) (S r) (a::as) = let as # ass = splitLVinto m (S r) (as) in (a::as) # ass
 
---interactive test : splitQubitsAt {t = SimulatedOp} 2 (MkQubit 0 :: MkQubit 1 :: MkQubit 2 :: MkQubit 3 :: LinearTypes.Nil) 
 
 public export
 data SimulatedOp : Nat -> Type where
@@ -193,15 +195,10 @@ toNoPrf (H j g) = (H j (toNoPrf g))
 toNoPrf (P p j g) = (P p j (toNoPrf g))
 toNoPrf (CNOT c t g) = (CNOT c t (toNoPrf g))
 
-||| Find an element in a list : used to find the wire of a qubit
-public export
-listIndex' : {n : Nat} -> Vect n Qubit -> Qubit -> Nat
-listIndex' [] _ = 0
-listIndex' (MkQubit x :: xs) (MkQubit k) = if x == k then 0 else S (listIndex' xs (MkQubit k))
-
 public export
 listIndex : (1 _ : SimulatedOp n) -> (1 _ : Qubit) -> LFstPair (LPair (SimulatedOp n) Qubit) Nat
-listIndex (MkSimulatedOp qs us v counter) (MkQubit k) = (MkSimulatedOp qs us v counter # MkQubit k) # (listIndex' v (MkQubit k))
+listIndex (MkSimulatedOp qs us v counter) q = let (q, k) = qubitToNatPair q in
+        (MkSimulatedOp qs us v counter # q) # (listIndex' v q)
 
 public export
 listIndices : (1 _ : SimulatedOp n) -> (1 _ : LVect i Qubit) -> LFstPair (LPair (SimulatedOp n) (LVect i Qubit)) (Vect i Nat)
@@ -218,16 +215,6 @@ removeElem (x :: xs) 0 = xs
 removeElem (x :: xs) (S k) = case xs of
                                   [] => []
                                   y :: ys => x :: removeElem xs k
-
-||| helper for below
-makeNeutralVect' : (n:Nat) -> Vect n Qubit
-makeNeutralVect' Z = []
-makeNeutralVect' (S k) = (MkQubit k) :: makeNeutralVect' k
-
-||| make a basic vector (basically newqubitspointers n but only for vect)
-public export
-makeNeutralVect : (n:Nat) -> Vect n Qubit
-makeNeutralVect k = reverse $ makeNeutralVect' k
 
 ||| as the name suggests
 lvectify : (1 _ : Vect i Qubit) -> (LVect i Qubit)
@@ -321,9 +308,10 @@ reCombineAbsSimulated q = MkUST (reCombineAbs' q)
 private
 applyControlOnly' : {n : Nat} -> {i : Nat} -> (1 _ : SimulatedOp i) -> (1 _ : Qubit) -> 
    (1 _ : SimulatedOp n) -> (LPair (SimulatedOp n) (LVect (S i) Qubit))
-applyControlOnly' {n} {i} (MkSimulatedOp vacuousQS uis vi vacuousC) (MkQubit k) (MkSimulatedOp qs un v counter) = 
-      let unew = apply (controlled uis) un ((k:: (toVectN vi))) in
-        do ((MkSimulatedOp qs unew v counter) # ((MkQubit k) :: toLVectQQ vi))
+applyControlOnly' {n} {i} (MkSimulatedOp vacuousQS uis vi vacuousC) q (MkSimulatedOp qs un v counter) =
+      let (q, k) = qubitToNatPair q in
+        let unew = apply (controlled uis) un ((k:: (toVectN vi))) in
+          do ((MkSimulatedOp qs unew v counter) # (q :: toLVectQQ vi))
 
 --(1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LPair Qubit (LVect i Qubit))) ->
 export
@@ -331,25 +319,16 @@ applyControlOnlySimulated : {n : Nat} -> {i : Nat} -> (1 _ : Qubit) -> (1 _ : Si
     UStateT (SimulatedOp n) (SimulatedOp n) (LVect (S i) Qubit)
 applyControlOnlySimulated control simop = MkUST (applyControlOnly' simop control)
 
-
-||| this is unsafe in general, but safe for us
-private 
-findInLinQ : {n:Nat} -> (q : Qubit) -> Vect (S n) Qubit -> (Vect n Qubit)
-findInLinQ (MkQubit q) [] impossible
-findInLinQ {n = Z} (MkQubit q) (MkQubit m :: xs) = []
-findInLinQ {n = S r} (MkQubit q) (MkQubit m :: xs) = case decEq q m of
-  Yes _ => xs
-  No _ => (MkQubit m :: (findInLinQ {n = r} (MkQubit q) xs))
-findInLinQ (MkQubit a) (x :: xs) = xs -- this is vacuous, but idris can't figure this out
-
+||| Auxiliary function for applying a control to a UStateT
 private
 applyControlSimulated': {n : Nat} -> {i : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit))->      
     (1_ : SimulatedOp (S n)) -> LPair (SimulatedOp (S n)) (LVect (S i) Qubit)
-applyControlSimulated' {n} (MkQubit k) ust (MkSimulatedOp qsn usn vsn csn)= 
-  let vn = findInLinQ (MkQubit k) vsn in
-  let (MkSimulatedOp dummyqs un vn dummyc) # lvOut = runUStateT (MkSimulatedOp (neutralIdPow n) (IdGate {n = n}) vn n) ust in
-  let unew = apply (controlled un) usn (k :: (toVectN vn)) in
-    (MkSimulatedOp qsn unew vsn csn) # (MkQubit k :: lvOut)
+applyControlSimulated' {n} q ust (MkSimulatedOp qsn usn vsn csn)= 
+  let (q, k) = qubitToNatPair q in
+    let vn = findInLinQ q vsn in
+      let (MkSimulatedOp dummyqs un vn dummyc) # lvOut = runUStateT (MkSimulatedOp (neutralIdPow n) (IdGate {n = n}) vn n) ust in
+        let unew = apply (controlled un) usn (k :: (toVectN vn)) in
+            (MkSimulatedOp qsn unew vsn csn) # (q :: lvOut)
 
 export
 applyControlAbsSimulated: {n : Nat} -> {i : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit))->      
@@ -361,7 +340,7 @@ applyUnitaryAbsSplit' : {n : Nat} -> {i : Nat} -> {j : Nat} -> (1_ : UStateT (Si
                          -> (1_: SimulatedOp n) -> LPair (SimulatedOp n) (LPair (LVect i Qubit) (LVect j Qubit))
 applyUnitaryAbsSplit' ust (MkSimulatedOp qs un v counter) = 
   let ((MkSimulatedOp vacuousQS unew vnew vacuousCounter) # lvect) = runUStateT (MkSimulatedOp qs un v counter) ust in
-        let unew = compose unew un in
+      let unew = compose unew un in
           do ((MkSimulatedOp qs unew vnew counter) # (lvect))
 
 ||| Implementation of abstract split application - representationally useful
@@ -372,11 +351,12 @@ applyUnitaryAbsSplitSimulated ust = MkUST (applyUnitaryAbsSplit' ust)
 ||| Helper for implementation of abstract controlled split application 
 applyControlledUSplitSim' : {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LPair (LVect i Qubit) (LVect j Qubit)))
                              -> (1_ : SimulatedOp (S n)) -> LPair (SimulatedOp (S n)) (LPair (LVect (S (i)) Qubit) (LVect j Qubit))
-applyControlledUSplitSim' (MkQubit k) ust (MkSimulatedOp qsn usn vsn csn)= 
-  let vn = findInLinQ (MkQubit k) vsn in
-  let (MkSimulatedOp dummyqs un vn dummyc) # (lvLeft # lvRight)= runUStateT (MkSimulatedOp (neutralIdPow n) (IdGate {n = n}) vn n) ust in
-  let unew = apply (controlled un) usn (k :: (toVectN vn)) in
-    (MkSimulatedOp qsn unew vsn csn) # ((MkQubit k :: lvLeft) # lvRight)
+applyControlledUSplitSim' q ust (MkSimulatedOp qsn usn vsn csn)= 
+  let (q, k) = qubitToNatPair q in
+    let vn = findInLinQ q vsn in
+      let (MkSimulatedOp dummyqs un vn dummyc) # (lvLeft # lvRight)= runUStateT (MkSimulatedOp (neutralIdPow n) (IdGate {n = n}) vn n) ust in
+        let unew = apply (controlled un) usn (k :: (toVectN vn)) in
+          (MkSimulatedOp qsn unew vsn csn) # ((q :: lvLeft) # lvRight)
 
 ||| Implementation of abstract controlled split application     
 applyControlledSimulatedSplit: {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LPair (LVect i Qubit) (LVect j Qubit)))
@@ -423,10 +403,11 @@ applyControlledOwn :UnitaryOp t =>  {n : Nat} -> {i : Nat} -> (1 _ : Qubit) -> (
 private
 applyControlledUnitaryOwn' : {n : Nat} -> {i : Nat} -> (1 _ : SimulatedOp i) -> (1 _ : Qubit) -> 
    (1 _ : SimulatedOp n) -> (LPair (SimulatedOp n) (LVect (S i) Qubit))
-applyControlledUnitaryOwn' {n} {i} (MkSimulatedOp vacuousQS ui vi vacuousC) (MkQubit k) (MkSimulatedOp qs un vn counter) =
-      let vin = toVectN vi in
+applyControlledUnitaryOwn' {n} {i} (MkSimulatedOp vacuousQS ui vi vacuousC) q (MkSimulatedOp qs un vn counter) =
+  let (q, k) = qubitToNatPair q in
+    let vin = toVectN vi in
       let unew = apply (controlled ui) un (k :: (vin)) in
-        do ((MkSimulatedOp qs unew vn counter) # (MkQubit k :: (toLVectQ vin)))
+        do ((MkSimulatedOp qs unew vn counter) # (q :: (toLVectQ vin)))
 
 ||| Implementation of 
 export
