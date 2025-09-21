@@ -210,8 +210,8 @@ computeEnergyPauli n p (S nSamples) circuit = do
   --let encodingCircuit = encodingUnitary p
   (b :: _) <- runQ (do
                qs <- newQubits {t} (S n)
-               qs <- applyUnitaryQ (applyUnitary qs (tensor (IdGate {n=1}) circuit))
-               qs <- applyUnitaryQ ((encodingUnitaryOp p qs))
+               qs <- applyUST (applyUnitary qs (tensor (IdGate {n=1}) circuit))
+               qs <- applyUST ((encodingUnitaryOp p qs))
                measureAll qs
                )
   rest <- computeEnergyPauli {t} n p nSamples circuit
@@ -336,7 +336,73 @@ VQE n h nSamples k depth = do
   observed_info <- VQE' {t=t} n h nSamples (S k) depth
   let energies = map (\(_, _, r) => r) observed_info
   pure $ foldl min (head energies) energies
+  
 
+computeEnergyPauliOg : QuantumOp t => (n : Nat) -> (p : PauliBasis n) -> (nSamples : Nat) -> (circuit : Unitary n) -> IO Double
+computeEnergyPauliOg n p 0 circuit = pure 0
+computeEnergyPauliOg n p (S nSamples) circuit = do
+  let encodingCircuit = encodingUnitary p
+  (b :: _) <- runQ (do
+               qs <- newQubits {t} (S n)
+               qs <- applyUnitaryDirectly ( (IdGate {n=1}) # circuit) qs
+               qs <- applyUnitaryDirectly encodingCircuit qs
+               measureAll qs
+               )
+  rest <- computeEnergyPauliOg {t} n p nSamples circuit
+  if (not b) then pure $ 1 + rest else pure $ rest - 1
+
+
+-- the next function computes <psi|H|psi> for a general hamiltonian H, expressed as a linear combination of tensor product of Pauli Matrices
+-- we just have to call the function computeEnergyPauli for each element inside the linear combination:
+
+||| Compute an approximation of <psi|H|psi> for a general Hamiltonian H
+|||
+||| n        -- number of qubits
+||| h        -- the hamiltonian of the problem
+||| nSamples -- the number of time we sample for each component of H
+||| circuit  -- the state |psi>
+||| output   -- computed energy
+computeEnergyOg : QuantumOp t => (n : Nat) -> (h : Hamiltonian n) -> (nSamples : Nat) -> (circuit : Unitary n) -> IO Double
+computeEnergyOg n [] nSamples circuit = pure 0
+computeEnergyOg n ((r, p) :: hs) nSamples circuit = do
+  res1 <- computeEnergyOg {t} n hs nSamples circuit
+  res2 <- computeEnergyPauliOg {t} n p nSamples circuit
+  pure $ res1 + r*res2/(cast nSamples)
+
+
+VQEOg': QuantumOp t =>
+       (n : Nat) -> (h : Hamiltonian n) -> (nSamples : Nat) -> (k : Nat) -> (depth : Nat) ->
+       IO (Vect k (RotationAnglesMatrix depth n, RotationAnglesMatrix depth n, Double))
+VQEOg' n h nSamples 0 depth = pure []
+VQEOg' n h nSamples (S k) depth = do
+  previous_info <- VQEOg' {t} n h nSamples k depth 
+  (phasesRy, phasesRz) <- classicalOptimisation depth h previous_info
+  let circuit = ansatz n depth phasesRy phasesRz
+  energy <- computeEnergyOg {t} n h nSamples circuit
+  pure $ (phasesRy, phasesRz, energy) :: previous_info
+
+
+
+--- The VQE algorithm just calls the previous function, and returns the minimum value of <psi|H|psi> that was observed
+--- Note that, in practice, if the classical Optimiser does their job correctly, the minimum value of <psi|H|psi>
+--- is very likely to be obtained in the last iteration. As we use a random function instead of an optimiser, this is
+--- not true, so we take the minimum among all runs.
+
+||| VQE algorithm
+||| n        -- number of qubits
+||| h        -- the hamiltonian of the problem
+||| nSamples -- number of times we sample to compute <psi|H|psi>
+||| k        -- number of iterations of the algorithm
+||| depth    -- depth of the ansatz circuit
+||| output   -- the lowest computed energy
+export
+VQEOg : QuantumOp t =>
+      (n : Nat) -> (h : Hamiltonian n) -> (nSamples : Nat) -> (k : Nat) -> (depth : Nat) ->
+      IO Double
+VQEOg n h nSamples k depth = do
+  observed_info <- VQEOg' {t=t} n h nSamples (S k) depth
+  let energies = map (\(_, _, r) => r) observed_info
+  pure $ foldl min (head energies) energies
 
 
 
@@ -346,5 +412,5 @@ testVQE : IO Double
 testVQE = do
   putStrLn "Test VQE"
   let hamiltonian = [(2, [PauliX, PauliY]),(3,[PauliZ, PauliI])]
-  VQE {t = SimulatedCircuit} 2 hamiltonian 1 2 1
+  VQEOg {t = SimulatedCircuit} 2 hamiltonian 1 2 1
 

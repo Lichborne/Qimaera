@@ -27,10 +27,10 @@ export
 RUS : UnitaryOp t => QuantumOp t => (1 _ : Qubit) -> (u' : Unitary 2) -> (e : Unitary 1) -> QStateT (t 1) (t 1) Qubit
 RUS q u' e = do
   q' <- newQubit
-  [q',q] <- applyUnitaryQ (applyUnitary [q',q] u')
+  [q',q] <- applyUST (applyUnitary [q',q] u')
   b <- measureQubit q'
   if b then do
-         [q] <- applyUnitaryQ (applyUnitary [q] (adjoint e))
+         [q] <- applyUST (applyUnitary [q] (adjoint e))
          RUS q u' e
        else pure q 
 
@@ -44,7 +44,7 @@ runRUS = do
   [b] <- runQ (do
               q <- newQubit {t = t}
               q <- RUS q example_u' IdGate
-              measureQ [q]
+              measure [q]
          )
   pure b
 
@@ -67,10 +67,10 @@ RUSAbs : QuantumOp t => UnitaryOp t => (1 _ : Qubit) -> (u' : (1_: LVect 2 Qubit
       -> (e : (1_: LVect 1 Qubit) -> (UStateT (t 1) (t 1) (LVect 1 Qubit))) -> QStateT (t 1) (t 1) (LVect 1 Qubit)
 RUSAbs q u' e = do
     q' <- newQubit
-    [q',q] <- applyUnitaryQ (u' [q',q])
+    [q',q] <- applyUST (u' [q',q])
     b <- measureQubit q'
     if b then do
-            [r] <- (applyUnitaryQ (e [q]))
+            [r] <- (applyUST (e [q]))
             RUSAbs r u' e
           else pure [q]
 
@@ -99,7 +99,7 @@ runRUSAbs = do
   [b] <- runQ (do
               q <- newQubit {t = t}
               q <- RUSAbs q (example_uAbs) idAbs
-              measureQ q
+              measure q
          )
   pure b
 

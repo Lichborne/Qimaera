@@ -44,22 +44,25 @@ interface QuantumOp (0 t : Nat -> Type) where
     pure q
   
   ||| Apply a unitary circuit to the qubits specified by the Vector argument
-  applyUnitaryQ : {n : Nat} -> {i : Nat} -> (1_: UStateT (t n) (t n) (LVect i Qubit)) -> QStateT (t n) (t n) (LVect i Qubit)
+  applyUST : {n : Nat} -> {i : Nat} -> (1_: UStateT (t n) (t n) (LVect i Qubit)) -> QStateT (t n) (t n) (LVect i Qubit)
+
+  ||| Apply a unitary directly; kept around for convenience
+  applyUnitaryDirectly : {n : Nat} -> {i : Nat} -> Unitary i -> (1_ : LVect i Qubit) -> QStateT (t n) (t n) (LVect i Qubit)
 
   ||| Apply Hadamard to specified qubit
   applyHQ: UnitaryOp t => {n : Nat} -> (1_ : Qubit) -> QStateT (t n) (t n) (LVect 1 Qubit)
   applyHQ q = do
-              q <- applyUnitaryQ {t = t} (applyH {t = t} {n = n } (q))
+              q <- applyUST {t = t} (applyH {t = t} {n = n } (q))
               pure q
 
   ||| Measure some qubits in a quantum state
   public export
-  measureQ : {n : Nat} -> {i : Nat} -> (1 _ : LVect i Qubit) -> QStateT (t (i + n)) (t n) (Vect i Bool)
+  measure : {n : Nat} -> {i : Nat} -> (1 _ : LVect i Qubit) -> QStateT (t (i + n)) (t n) (Vect i Bool)
   
   ||| Measure only one qubit
   measureQubit : {n : Nat} -> (1 _ : Qubit) -> QStateT (t (S n)) (t n) Bool
   measureQubit q = do
-    [b] <- measureQ [q]
+    [b] <- measure [q]
     pure b
   ||| Same as measure, but with an initial state of n + i instead of i + n qubits to help with theorem proving in some cases
   -- public export
@@ -121,30 +124,31 @@ applyUnitary' : {n : Nat} -> {i : Nat} ->
 applyUnitary' ust (MkSimulatedOp qs un v counter) = let (Builtin.(#) opOut lvect) = (UnitaryOp.run' (MkSimulatedOp qs un v counter) ust) in do
   pure1 (Builtin.(#) opOut lvect)
 -}
+applyCirc : {n:Nat} -> Vect n Nat -> Unitary n -> (1 _ : SimulatedOp n) -> SimulatedOp n
+applyCirc v IdGate qst = qst
+applyCirc {n = n} v (H j g) st = 
+  let k = indexLT j v 
+      h = simpleTensor matrixH n k
+      MkSimulatedOp qst urest q counter = applyCirc v g st
+  in MkSimulatedOp (h `matrixMult` qst) IdGate q counter
+applyCirc {n = n}  v (P p j g) st = 
+  let k = indexLT j v
+      ph = simpleTensor (matrixP p) n k
+      MkSimulatedOp qst urest q counter = applyCirc v g st
+  in MkSimulatedOp (ph `matrixMult` qst) IdGate q counter
+applyCirc {n = n} v (CNOT c t g) st = 
+  let kc = indexLT c v
+      kt = indexLT t v
+      cn =  tensorCNOT n kc kt
+      MkSimulatedOp qst urest q counter = applyCirc v g st
+  in MkSimulatedOp (cn `matrixMult` qst) IdGate q counter
+
 applyUnitary' : {n : Nat} -> {i : Nat} -> ( 1 _ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit) ) -> (1 _ : SimulatedOp n) -> R (LPair (SimulatedOp n) (LVect i Qubit))
 applyUnitary' ust (MkSimulatedOp qs un v counter) = 
   let (opOut # lvect) = (UnitaryOp.run' (MkSimulatedOp qs un v counter) ust) in
   let --(qs # v') # ind = listIndices opOut lvect 
       qs2 = applyCirc (toVectN v) un opOut
-  in pure1 (Builtin.(#) qs2  lvect) where
-    applyCirc : Vect n Nat -> Unitary n -> (1 _ : SimulatedOp n) -> SimulatedOp n
-    applyCirc v IdGate qst = qst
-    applyCirc v (H j g) st = 
-      let k = indexLT j v 
-          h = simpleTensor matrixH n k
-          MkSimulatedOp qst urest q counter = applyCirc v g st
-      in MkSimulatedOp (h `matrixMult` qst) IdGate q counter
-    applyCirc v (P p j g) st = 
-      let k = indexLT j v
-          ph = simpleTensor (matrixP p) n k
-          MkSimulatedOp qst urest q counter = applyCirc v g st
-      in MkSimulatedOp (ph `matrixMult` qst) IdGate q counter
-    applyCirc v (CNOT c t g) st = 
-      let kc = indexLT c v
-          kt = indexLT t v
-          cn =  tensorCNOT n kc kt
-          MkSimulatedOp qst urest q counter = applyCirc v g st
-      in MkSimulatedOp (cn `matrixMult` qst) IdGate q counter
+  in pure1 (Builtin.(#) qs2  lvect)
     
 ||| Apply a unitary circuit to a SimulatedOp Alt
 export
@@ -152,6 +156,16 @@ applyUnitarySimulated : {n : Nat} -> {i : Nat} ->
   ( 1 _ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit) ) -> QStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)
 applyUnitarySimulated ust = MkQST (applyUnitary' ust)
 
+applyUDirectlySimulated' : {n : Nat} -> {i : Nat} -> Unitary i -> (1_ : LVect i Qubit) -> (1_ : SimulatedOp n) -> R (LPair (SimulatedOp n) (LVect i Qubit))
+applyUDirectlySimulated' ui li (MkSimulatedOp qs un v counter) = 
+                      let lvOut # vect = distributeDupedLVectVect li in
+                          let unew = apply ui IdGate vect in
+                              let qs2 = applyCirc (toVectN v) unew (MkSimulatedOp qs un v counter) in
+                                  pure1 (qs2 # lvOut)
+
+
+applyUDirectlySimulated : {n : Nat} -> {i : Nat} -> Unitary i -> (1_ : LVect i Qubit) -> QStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)
+applyUDirectlySimulated ui li  = MkQST (applyUDirectlySimulated' ui li)
 
 ||| Auxiliary function for applying a circuit to some qubits
 private
@@ -189,6 +203,22 @@ measure' {n} i (MkSimulatedOp v un w counter) = do
        let proj = multScalarMatrix (inv (sqrt norm21) :+ 0) projection1
        pure1 (MkSimulatedOp (projectState {n} proj i True) IdGate newQubits counter # True)
 
+||| Helper, so that we only have to recalculate the counter once
+private
+measureQubits'' : {n : Nat} -> {i : Nat} ->
+                 (1 _ : LVect i Qubit) ->
+                 (1 _ : SimulatedOp (i + n)) -> R (LPair (SimulatedOp n) (Vect i Bool))
+measureQubits'' [] qs = pure1 (qs # [])
+measureQubits'' (x :: xs) qs = 
+  let (qs' # q) # y = listIndex qs x in
+    let (q, k) = qubitToNatPair q in 
+      do
+      (s # b) <- measure' y qs'
+      (s1 # bs) <- measureQubits'' xs s
+      case bs of 
+          [] => pure1 (s1 # [b])
+          (b' :: bs') => pure1 (s1 # (b :: b' :: bs'))
+
 ||| Auxiliary function for measurements
 private
 measureQubits' : {n : Nat} -> {i : Nat} ->
@@ -199,11 +229,11 @@ measureQubits' (x :: xs) qs =
   let (qs' # q) # y = listIndex qs x in
     let (q, k) = qubitToNatPair q in 
       do
-      (s # b) <- measure' y qs'
-      (s1 # bs) <- measureQubits' xs s
+      (s # b)<- measure' y qs'
+      (MkSimulatedOp stfin unfin vfin counter # bs) <- measureQubits'' xs s
       case bs of 
-          [] => pure1 (s1 # [b])
-          (b' :: bs') => pure1 (s1 # (b :: b' :: bs'))
+          [] => pure1 (MkSimulatedOp stfin unfin vfin (reCalculateCounter vfin) # [b])
+          (b' :: bs') => pure1 (MkSimulatedOp stfin unfin vfin (reCalculateCounter vfin) # (b :: b' :: bs'))
 
 ------- SIMULATE CIRCUITS : OPERATIONS ON QUANTUM STATES ------
 
@@ -322,8 +352,9 @@ runSimulated s = LIO.run (do
 export
 QuantumOp SimulatedOp where
   newQubits    = newQubitsSimulated
-  applyUnitaryQ = applyUnitarySimulated
-  measureQ      = measureSimulated
+  applyUST = applyUnitarySimulated
+  applyUnitaryDirectly = applyUDirectlySimulated
+  measure      = measureSimulated
   runQ          = runSimulated
 {- 
 

@@ -71,7 +71,10 @@ interface UnitaryOp (0 t : Nat -> Type) where
   run :  {i : Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LVect i Qubit) ) -> (LPair (t n) (LVect i Qubit))
 
 
-  --exportUnitary :  {i : Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LVect i Qubit)) -> (Unitary n)
+  exportTN :  {i : Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LVect i Qubit)) -> (t n)
+  exportTN {i = i} tn ust = let tnout # lvect = runUStateT tn ust in
+                                      let () = discardq lvect in
+                                          tnout
 
   --------------------- Split Computation and Accompanying Utilities -------------------------
 
@@ -101,6 +104,11 @@ interface UnitaryOp (0 t : Nat -> Type) where
 ||| IT IS HIGHLY RECOMMENDED THAT THESE 
 ||| UTILIZED, AS THEY MAKE LIFE A LOT EASIER
 ------------------------------------------
+
+||| for exporting an instance opf the Unitary algebraic datatype based on the unitary build inside UStateT
+||| this is not in general doable, as it depends on the structure of the specific t n and whether it can be translated into 
+||| a value of Unitary n, because the proofs are necessary to build an instance of the type
+exportUnitary : UnitaryOp t => {i : Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LVect i Qubit)) -> (Unitary n)
 
 ||| SWAP registers in parsing; an exchange of "wires", easy to make conditional 
 export                           
@@ -242,6 +250,18 @@ mergeLVects (xs) (ys) = mergeVects (toVectQ xs) (toVectQ ys)
 public export
 run' : {i:Nat} -> (1_: SimulatedOp n) -> (1 _ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit) ) -> LPair (SimulatedOp n) (LVect i Qubit)
 run' {i = i} simop ust = runUStateT simop ust
+
+||| Implementation of exporting just a unitary out of SimulatedOp
+public export
+exportTN' : {i:Nat} -> (1_: SimulatedOp n) -> (1 _ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit) ) -> SimulatedOp n
+exportTN' {i = i} simop ust = let op # lvect = runUStateT simop ust in
+                                      let () = discardq lvect in
+                                          op
+
+||| Implementation of exporting just a unitary out of SimulatedOp
+public export
+exportUnitary' : {i:Nat} -> (1_: SimulatedOp n) -> (1 _ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit) ) -> Unitary n
+exportUnitary' {i = i} simop ust = let (MkSimulatedOp qn un vn counter) = exportTN' simop ust in un
 
 ||| Implementation of runSplit SimulatedOp
 public export
@@ -429,6 +449,7 @@ UnitaryOp SimulatedOp where
   reCombineAbs = reCombineAbsSimulated
   run          = run' 
   runSplit = runSplit'
+  exportTN = exportTN'
 
 -------------------------------------------------------------------------
 

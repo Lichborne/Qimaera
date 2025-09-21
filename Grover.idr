@@ -120,7 +120,7 @@ groverOP : UnitaryOp t => QuantumOp t => (n : Nat) -> {p : Nat} -> (oracle : Uni
 groverOP n oracle nbIter = do
       w <- runQ (do
             q <- newQubits {t=t} (n + p)
-            grvrU <- applyUnitaryQ (groverOp' {t=t} n oracle nbIter q)
+            grvrU <- applyUST (groverOp' {t=t} n oracle nbIter q)
             v <- measureAll grvrU
             pure v
             )

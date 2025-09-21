@@ -69,8 +69,8 @@ ux qs = do
 brokenOp1 : UnitaryOp t => QuantumOp t => QStateT (t 0) (t 0) (Vect 4 Bool)
 brokenOp1  = do
       [q1,q2,q3,q4] <- newQubits {t = t} 4
-      [b3] <- measureQ [q3]
-      [r4,r3,r1] <- applyUnitaryQ {t = t} (applyUnitaryAbs (ux [q4,q3,q1]))  --trying to reuse q3
+      [b3] <- measure [q3]
+      [r4,r3,r1] <- applyUST {t = t} (applyUnitaryAbs (ux [q4,q3,q1]))  --trying to reuse q3
       [b1,b4,b2] <- measure [r1,r4,q2]
       pure ([b1,b2,b3,b4])
       
@@ -89,9 +89,9 @@ brokenOp2 : IO (Vect 5 Bool)
 brokenOp2 = 
   runQ (do
       [q1,q2,q3,q4] <- newQubits {t = SimulatedOp} 4
-      [b3] <- measureQ [q3]
-      [q4,q1,q5] <- applyUnitaryQ (applyUnitary [q4,q1,q4] (X 0 IdGate)) --trying to copy q4
-      [b1,b2,b5] <- measureQ [q1,q2,q5]
+      [b3] <- measure [q3]
+      [q4,q1,q5] <- applyUST (applyUnitary [q4,q1,q4] (X 0 IdGate)) --trying to copy q4
+      [b1,b2,b5] <- measure [q1,q2,q5]
       pure [b1,b2,b3,b5,b5]
       )
       
@@ -107,9 +107,9 @@ brokenOp3 : IO (Vect 4 Bool)
 brokenOp3  = 
   runQ (do
       [q1,q2,q3,q4] <- newQubits {t = SimulatedOp} 4
-      [b3] <- measureQ [q3]
-      [r4,r2,r1] <- applyUnitaryQ (applyUnitary [q4,q2,q1] (X 0 IdGate)) 
-      [b1,b4,b2] <- measureQ [r1,r4,q2] --trying to reuse the name q2
+      [b3] <- measure [q3]
+      [r4,r2,r1] <- applyUST (applyUnitary [q4,q2,q1] (X 0 IdGate)) 
+      [b1,b4,b2] <- measure [r1,r4,q2] --trying to reuse the name q2
       pure ([b1,b2,b3,b4])
       )
       

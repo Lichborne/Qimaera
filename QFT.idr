@@ -64,7 +64,7 @@ qftU {n} {i = S k} (q::qs) = do
 ||| Full, partially abstract QFT
 public export
 qftQ : UnitaryOp t => QuantumOp t => (i : Nat) -> (n: Nat) -> (1 _ : LVect i Qubit) -> QStateT (t n) (t n) (LVect i Qubit)
-qftQ i n qs = applyUnitaryQ {t=t} (qftU {t=t} {i = i} {n = n} (qs))
+qftQ i n qs = applyUST {t=t} (qftU {t=t} {i = i} {n = n} (qs))
 
 ||| Builds the *abstract* rotation operator for the QFT inside UnitaryOp
 rotateAbs : UnitaryOp t => {n:Nat} -> {i:Nat} -> (m:Nat) -> (1_ : Qubit) -> (1 _ : LVect i Qubit) -> UStateT (t (n)) (t (n)) (LVect (S i) Qubit)
@@ -87,7 +87,7 @@ qftUAbs {n} {i = S k} (q::qs) = do
 ||| Full, fully abstract QFT
 public export
 qftQAbs : UnitaryOp t => QuantumOp t => (i : Nat) -> (n: Nat) -> (1 _ : LVect i Qubit) -> QStateT (t n) (t n) (LVect i Qubit)
-qftQAbs i n qs = applyUnitaryQ {t=t} (qftUAbs {t=t} {i = i} {n = n} (qs))
+qftQAbs i n qs = applyUST {t=t} (qftUAbs {t=t} {i = i} {n = n} (qs))
 
 ||| Run with 3 qubits (any more takes too long on a normal computer)
 runQFTAbs3 : UnitaryOp t => QuantumOp t => IO (Vect 3 Bool)
@@ -125,7 +125,7 @@ qftUInv {n} {i = S k} (q::qs) = do
 ||| Full, partially abstract QFT
 public export
 qftQInv : UnitaryOp t => QuantumOp t => (i : Nat) -> (n: Nat) -> (1 _ : LVect i Qubit) -> QStateT (t n) (t n) (LVect i Qubit)
-qftQInv i n qs = applyUnitaryQ {t=t} (qftUInv {t=t} {i = i} {n = n} (qs))
+qftQInv i n qs = applyUST {t=t} (qftUInv {t=t} {i = i} {n = n} (qs))
 
 
 

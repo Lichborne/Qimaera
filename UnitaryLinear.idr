@@ -469,6 +469,56 @@ exportToQiskit str g =
              Left e1 => putStrLn "Error when writing file"
              Right io1 => pure ()
 
+private
+toQiskitWithSize : {n : Nat} -> (size: Nat) -> Unitary n -> String
+toQiskitWithSize sz g =
+  let s = unitarytoQiskit g in
+  ("import numpy as np\n" ++
+  "from qiskit import QuantumCircuit\n" ++
+  "from qiskit import QuantumRegister\n" ++
+  "qr = QuantumRegister(" ++ show sz ++ ")\n" ++
+  "qc = QuantumCircuit(qr)\n\n" ++ s ++
+  "\nqc.draw('mpl')")
+
+|||Export a circuit to Qiskit code
+public export
+exportToQiskitWithSize : {n : Nat} -> String -> (size: Nat) -> Unitary n -> IO ()
+exportToQiskitWithSize str sz g =
+  let s = toQiskitWithSize sz g in
+      do
+        a <- writeFile str s
+        case a of
+             Left e1 => putStrLn "Error when writing file"
+             Right io1 => pure ()
 
 
+------------------ Export to Qiskit for Visualization ---------------------
 
+public export
+unitarytoQVis : Unitary n -> String
+unitarytoQVis IdGate = ""
+unitarytoQVis (H i g) = unitarytoQVis g ++  "\tcircuit.h(" ++ show i ++ ")\n"
+unitarytoQVis (P p i g) = unitarytoQVis g ++ "\tcircuit.p(" ++ printPhase p 0.001 "np.pi" ++ ", "++ show i ++ ")\n" 
+unitarytoQVis (CNOT c t g) = unitarytoQVis g ++ "\tcircuit.cx(" ++ show c ++ ", " ++ show t ++ ")\n" 
+
+
+private
+toQVis : {n : Nat} -> Unitary n -> String
+toQVis g =
+  let s = unitarytoQVis g in
+  ("import numpy as np\n" ++
+  "from qiskit import QuantumCircuit\n" ++
+  "def OutputCircuit():  \n" ++
+  "\tcircuit = QuantumCircuit(" ++ show n ++ ")\n" ++ s ++
+  "\treturn circuit \n\nqc = OutputCircuit()")
+
+|||Export a circuit to Qiskit code
+public export
+exportForQVis : {n : Nat} -> String -> Unitary n -> IO ()
+exportForQVis str g =
+  let s = toQVis g in
+      do
+        a <- writeFile str s
+        case a of
+             Left e1 => putStrLn "Error when writing file"
+             Right io1 => pure ()

@@ -19,7 +19,7 @@ coin = do
   [b] <- runQ {t = t} (do
            q <- newQubit
            q <- applyHQ q
-           r <- measureQ q
+           r <- measure q
            pure r
          )
   pure b
