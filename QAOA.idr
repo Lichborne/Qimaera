@@ -16,7 +16,7 @@ import RandomUtilities
 import UnitaryOp
 import UStateT
 import Qubit
-import SimulatedCircuit
+import SimulatedCircuitAlt
 
 %default total
 

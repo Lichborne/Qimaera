@@ -16,7 +16,7 @@ import Qubit
 import Lemmas
 import UnitaryOp
 import UStateT
-import SimulatedCircuit
+import SimulatedCircuitAlt
 --import UnitarySimulated
 --import UnitaryNoPrf
 

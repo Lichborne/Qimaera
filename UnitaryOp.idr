@@ -67,6 +67,8 @@ interface UnitaryOp (0 t : Nat -> Type) where
   applyControlledAbs: {n : Nat} -> {i : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (t n) (t n) (LVect i Qubit))      
                    -> UStateT (t (S n)) (t (S n)) (LVect (S i) Qubit)
   
+  invertUST: (1_ : UStateT (t n) (t n) (LVect i Qubit)) -> (UStateT (t n) (t n) (LVect i Qubit))
+
   ||| sequence to the end
   run :  {i : Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LVect i Qubit) ) -> (LPair (t n) (LVect i Qubit))
 
@@ -383,6 +385,16 @@ applyControlledSimulatedSplit: {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) 
                              -> UStateT (SimulatedOp (S n)) (SimulatedOp (S n)) (LPair (LVect (S (i)) Qubit) (LVect j Qubit))
 applyControlledSimulatedSplit ctrl ust = MkUST (applyControlledUSplitSim' ctrl ust)   
 
+invert: (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)) -> (1_ : (SimulatedOp n)) -> LPair (SimulatedOp n) (LVect i Qubit)
+invert ust (MkSimulatedOp qn u v counter)=  
+    let (MkSimulatedOp dummyqs un vn dummyc) # lvOut = runUStateT (MkSimulatedOp (neutralIdPow n) (IdGate {n = n}) v counter) ust in
+        let invu = adjoint un in
+            let unew = compose invu u in
+                (MkSimulatedOp qn unew v counter) # (lvOut)
+export
+invertUST' : (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)) -> (UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit))
+invertUST' ust = MkUST (invert ust)
+
 -------------------------------------------------------------------------
 ||| Other situationally useful, but not necessary interface functions
 
@@ -444,6 +456,7 @@ UnitaryOp SimulatedOp where
   applyUnitaryOwn = applyUnitaryOwnSimulated
   applyUnitaryAbs = applyUnitaryAbsSimulated
   applyControlledAbs = applyControlAbsSimulated
+  invertUST = invertUST'
   applyControlledAbsSplit = applyControlledSimulatedSplit
   applyUnitaryAbsSplit = applyUnitaryAbsSplitSimulated
   reCombineAbs = reCombineAbsSimulated

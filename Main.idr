@@ -29,7 +29,7 @@ import Matrix
 import UnitarySimulated
 import UnitaryNoPrfSim
 import ModularExponentiation
-import SimulatedCircuit
+import SimulatedCircuitAlt
 
 
 
@@ -116,7 +116,7 @@ qftTest : LPair (Unitary 4) (LVect 4 Qubit)
 qftTest = let 
     a = mkQubitList 0 4
     in runUnitarySim (IdGate {n  = 4}) (do
-            out <- qftU a
+            out <- (qftUInv a)
             pure out)
             
 qftTestIo : IO ()
@@ -125,8 +125,8 @@ qftTestIo = let
   in
     do
       d <- draw un
-      eo <- exportToQiskit "qft.py" un
-      eo <- exportToQiskit "ogqft.py" (qft 4)
+      eo <- exportToQiskit "qftinv.py" un
+      --eo <- exportToQiskit "ogqft.py" (qft 4)
       pure () 
     
 {-}
@@ -164,12 +164,12 @@ qftTestIo = let
       pure () 
     -}
 
-adderTest : LPair (Unitary 3) (LVect 7 Qubit)
+adderTest : LPair (UnitaryNoPrf 3) (LVect 7 Qubit)
 adderTest = let 
         a = mkQubitList 0 3
         b = mkQubitList 3 4
         in 
-          runUnitarySim (IdGate {n=3}) (do
+          runUnitaryNoPrfSim (IdGate {n=3}) (do
             out <- (reCombineAbs $ inPlaceQFTAdder a b)
             pure out)         
 
@@ -182,16 +182,11 @@ adderTestQ = runQ {t = SimulatedOp} (do
                pure out )
             
 adderTestIo : IO ()
-adderTestIo = do
-  any <- adderTestQ
-  pure ()
-{- let
-  (uni) # lvect = adderTest
-  in
+adderTestIo = let (uni) # lvect = adderTest in
     do
       d <- draw uni
-      eo <- exportToQiskit "adder.py" uni
-    pure () -}
+      eo <- exportForQVis "adder.py" uni
+      pure ()
       
 {-}
 encodingTest : LPair (Unitary 5) (LVect (5) Qubit)
@@ -237,7 +232,7 @@ encodingTestIo = let
 
 
 ||| testing just the unitary part of modular exponentiation
-modularTest : LPair (Unitary 5) (LPair (LVect (3 + 3 + 3 + 3 + 3) Qubit) (LVect (3) Qubit))
+modularTest : LPair (UnitaryNoPrf 5) (LPair (LVect (3 + 3 + 3 + 3 + 3) Qubit) (LVect (3) Qubit))
 modularTest = let 
         c = mkQubitList 0 1 --- recall that UnitaryOp can only ever get qubits from quantumOp, so we dont have to worry about whether the qubits will be distinct
         ancilla = mkQubitList 1 1
@@ -247,7 +242,7 @@ modularTest = let
         bigNs = mkQubitList  11 3
         nils = mkQubitList 14 4
         in 
-          runSplitUnitarySim (IdGate {n=5}) (do
+          runSplitUnitaryNoPrfSim (IdGate {n=5}) (do
             out <-  inPlaceModularExponentiation c ancilla (xs) (ans) (asnmodinv) (bigNs) (nils)
             pure out)     
           
@@ -279,12 +274,12 @@ main = do
 
   -- Repeat until success
   putStrLn "\nTest 'Repeat Until Success'. Probability to measure '1' is 2/3 for this example."
-  --b <- testMultipleRUS 3
+  b <- testMultipleRUS 3
 
   -- VQE
   putStrLn "\nSmall test with VQE"
   --
-  --r <- VQE.testVQE
+  r <- VQE.testVQE
   --putStrLn $ "result from VQE : " ++ show r
 
   -- QAOA
@@ -293,7 +288,7 @@ main = do
   --putStrLn $ "result from QAOA : " ++ show cut
   --k <- encodingTestIo
   --ast <- adderTestIo
-  abs <-qftAbsTestIo
+  --abs <-qftAbsTestIo
   --normie <- qftTestIo
   --normie <- qftAbsTestIo
   --modular <- modularTestIo

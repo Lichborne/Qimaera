@@ -105,22 +105,27 @@ testQFTAbs3 = (do
 
 
 ||| Builds the rotation operator for the QFT inside UnitaryOp using the unitaries built with Unitary
-rotateInv : UnitaryOp t => {n:Nat} -> {i:Nat} -> (m:Nat) -> (1_ : Qubit) -> (1 _ : LVect i Qubit) -> UStateT (t (n)) (t (n)) (LVect (S i) Qubit)
-rotateInv m q [] = pure (q :: [])
-rotateInv {n} {i = (S k)} m q (p::ps) = do
-        (q' :: ps') <- rotate (S m) q ps
+rotateInvManual : UnitaryOp t => {n:Nat} -> {i:Nat} -> (m:Nat) -> (1_ : Qubit) -> (1 _ : LVect i Qubit) -> UStateT (t (n)) (t (n)) (LVect (S i) Qubit)
+rotateInvManual m q [] = pure (q :: [])
+rotateInvManual {n} {i = (S k)} m q (p::ps) = do
+        (q' :: ps') <- rotateInvManual (S m) q ps
         (p' :: [q'']) <- applyUnitary (p :: [q']) (adjoint (cRm m))
         pure (q'':: p':: ps')
 
 ||| Builds the whole operator for the QFT inside UnitaryOp using rotation using the unitaries built with Unitary
 public export
-qftUInv :  UnitaryOp t => {n:Nat} -> {i:Nat} -> (1 _ : LVect i Qubit) -> UStateT (t (n)) (t (n)) (LVect (i) Qubit)
-qftUInv [] = pure []
-qftUInv {n} {i = S k} (q::qs) = do
-    qs' <- qftUInv qs
-    (q' :: qs'') <- rotate (S (S Z)) q qs'
+qftUInvManual :  UnitaryOp t => {n:Nat} -> {i:Nat} -> (1 _ : LVect i Qubit) -> UStateT (t (n)) (t (n)) (LVect (i) Qubit)
+qftUInvManual [] = pure []
+qftUInvManual {n} {i = S k} (q::qs) = do
+    qs' <- qftUInvManual qs
+    (q' :: qs'') <- rotateInvManual (S (S Z)) q qs'
     (q'' :: Nil ) <- applyUnitary [q'] (adjoint HGate)
     pure (q'' :: qs'')
+
+||| suggested method for inverting UnitaryOp- build unitaries   
+public export 
+qftUInv : UnitaryOp t => {n:Nat} -> {i:Nat} -> (1 _ : LVect i Qubit) -> UStateT (t (n)) (t (n)) (LVect (i) Qubit)
+qftUInv lvect = invertUST (qftU lvect)
 
 ||| Full, partially abstract QFT
 public export
