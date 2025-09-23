@@ -274,12 +274,12 @@ main = do
 
   -- Repeat until success
   putStrLn "\nTest 'Repeat Until Success'. Probability to measure '1' is 2/3 for this example."
-  b <- testMultipleRUS 3
+  --b <- testMultipleRUS 3
 
   -- VQE
   putStrLn "\nSmall test with VQE"
   --
-  r <- VQE.testVQE
+  --r <- VQE.testVQE
   --putStrLn $ "result from VQE : " ++ show r
 
   -- QAOA
@@ -292,6 +292,7 @@ main = do
   --normie <- qftTestIo
   --normie <- qftAbsTestIo
   --modular <- modularTestIo
+  qftabs <- testQFTAbs12
   pure ()
 
 

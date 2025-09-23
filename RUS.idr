@@ -43,7 +43,7 @@ runRUS : UnitaryOp t => QuantumOp t => IO Bool
 runRUS = do
   [b] <- runQ (do
               q <- newQubit {t = t}
-              q <- RUS q example_u' IdGate
+              q <- RUS q example_u' TGate
               measure [q]
          )
   pure b
