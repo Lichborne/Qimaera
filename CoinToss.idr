@@ -18,7 +18,7 @@ coin : UnitaryOp t => QuantumOp t => IO Bool
 coin = do
   [b] <- runQ {t = t} (do
            q <- newQubit
-           q <- applyHQ q
+           q <- applyUST (applyH q)
            r <- measure q
            pure r
          )

@@ -42,8 +42,7 @@ testCoins : IO ()
 testCoins = do
   let f = coin {t = SimulatedOp}
   s <- sequence (Data.List.replicate 1000 f)
-  let heads = filter (== True) s
-  putStrLn $ "Number of heads: " ++ (show (length heads))
+  putStrLn $ "Number of heads: " ++ (show (length (filter (== True) s)))
 
 
 ||| Test graph for the QAOA problem
@@ -112,16 +111,14 @@ qftAbsTestIo = let
       eo <- exportForQVis "qftAbs.py" un
       pure () 
 
-qftTest : LPair (Unitary 4) (LVect 4 Qubit)
-qftTest = let 
-    a = mkQubitList 0 4
-    in runUnitarySim (IdGate {n  = 4}) (do
-            out <- (qftUInv a)
-            pure out)
+qftTest : (m: Nat) -> (Unitary m)
+qftTest m = let 
+    a = mkQubitList 0 m
+    in exportSelf (IdGate {n  = m}) (qftU a)
             
 qftTestIo : IO ()
 qftTestIo = let
-  un # lvect = qftTest
+  un = qftTest 4
   in
     do
       d <- draw un
@@ -164,31 +161,31 @@ qftTestIo = let
       pure () 
     -}
 
-adderTest : LPair (UnitaryNoPrf 3) (LVect 7 Qubit)
+adderTest : (Unitary 3)
 adderTest = let 
         a = mkQubitList 0 3
-        b = mkQubitList 3 4
+        b = mkQubitList 2 4
         in 
-          runUnitaryNoPrfSim (IdGate {n=3}) (do
-            out <- (reCombineAbs $ inPlaceQFTAdder a b)
+          exportSelf (IdGate {n=3}) (do
+            out <- (inPlaceQFTAdder2 a b)
             pure out)         
 
-adderTestQ : IO (Vect 7 Bool)
+adderTestQ : QuantumOp t => IO (Vect 7 Bool)
 adderTestQ = runQ {t = SimulatedOp} (do
                a <- newQubits 3
                b <- newQubits 4 
                outapp <- applyUST (reCombineAbs $ inPlaceQFTAdder a b)
                out <- measureAll (outapp)
                pure out )
-            
+         
 adderTestIo : IO ()
-adderTestIo = let (uni) # lvect = adderTest in
+adderTestIo = let (uni) = adderTest in
     do
       d <- draw uni
       eo <- exportForQVis "adder.py" uni
       pure ()
       
-{-}
+{-
 encodingTest : LPair (Unitary 5) (LVect (5) Qubit)
 encodingTest = let 
         p = [PauliX, PauliY, PauliZ, PauliI]
@@ -203,11 +200,11 @@ encodingTestU = let
         p = [PauliX, PauliY, PauliZ, PauliI]
         in 
         encodingUnitary p 
-        -}
+-}
 encodingTest : LPair (Unitary 3) (LVect (3) Qubit)
 encodingTest = let 
         p = [PauliZ, PauliI]
-        qs = mkQubitList 0 3
+        qs = stupidQubitList
         in 
           runUnitarySim (IdGate {n=3}) (do
             out <- encodingUnitaryOp p qs
@@ -224,7 +221,7 @@ encodingTestIo = let
   uni # lvect = encodingTest
   in
     do
-      eo <- exportToQiskit "encodingVEQEtest.py" uni
+      eo <- exportToQiskit "encodingstupid.py" uni
       d <- draw uni
       d2 <- draw encodingTestU
       pure () 
@@ -245,16 +242,17 @@ modularTest = let
           runSplitUnitaryNoPrfSim (IdGate {n=5}) (do
             out <-  inPlaceModularExponentiation c ancilla (xs) (ans) (asnmodinv) (bigNs) (nils)
             pure out)     
-          
-modularTestIo : IO ()
+ {-}         
+modularTestIo : IO (UnitaryNoPrf 5)
 modularTestIo = let
   (uni) # lvect = modularTest
+  uni1 # uni2 = UnjitaryNoPrfSim.duplicateLinU
   in
     do
       d <- draw uni
-      eo <- exportToQiskit "modular.py" uni
+      eo <- exportToQiskit "modular.py" uni1
       pure () 
-
+    -}
 
 public export
 main : IO ()
@@ -286,13 +284,13 @@ main = do
   putStrLn "\nSmall test with Encoding in VQE"
   --cut <- testQAOA
   --putStrLn $ "result from QAOA : " ++ show cut
-  --k <- encodingTestIo
+  k <- encodingTestIo
   --ast <- adderTestIo
   --abs <-qftAbsTestIo
   --normie <- qftTestIo
   --normie <- qftAbsTestIo
   --modular <- modularTestIo
-  qftabs <- testQFTAbs12
+  --qftabs <- testQFTAbs12
   pure ()
 
 

@@ -112,7 +112,7 @@ qftUInvManual {n} {i = S k} (q::qs) = do
 ||| suggested method for inverting UnitaryOp- build unitaries   
 public export 
 qftUInv : UnitaryOp t => {n:Nat} -> {i:Nat} -> (1 _ : LVect i Qubit) -> UStateT (t (n)) (t (n)) (LVect (i) Qubit)
-qftUInv lvect = invertUST (qftU lvect)
+qftUInv lvect = adjointUST (qftU lvect)
 
 ||| Full, partially abstract QFT
 public export

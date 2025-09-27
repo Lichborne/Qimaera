@@ -56,7 +56,6 @@ interface QuantumOp (0 t : Nat -> Type) where
               pure q
 
   ||| Measure some qubits in a quantum state
-  public export
   measure : {n : Nat} -> {i : Nat} -> (1 _ : LVect i Qubit) -> QStateT (t (i + n)) (t n) (Vect i Bool)
   
   ||| Measure only one qubit
@@ -72,7 +71,6 @@ interface QuantumOp (0 t : Nat -> Type) where
   ||| Measure all qubits in a quantum state
   ||| Because of a bug in Idris2, we use the implementation below.
   ||| However, the implementation commented out is preferable if the bug gets fixed.
-  public export
   measureAll : {n : Nat} -> (1 _ : LVect n Qubit) -> QStateT (t n) (t 0) (Vect n Bool)
   measureAll []        = pure []
   measureAll (q :: qs) = do

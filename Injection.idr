@@ -223,6 +223,41 @@ ifInjectiveDecThenSubInjectiveDec : IsInjectiveDec m (x::xs) -> IsInjectiveDec m
 ifInjectiveDecThenSubInjectiveDec (IsInjectiveSuccDec allDiff allSmall) =
     IsInjectiveSuccDec (ifAllDiffDecThenSubDiffDec allDiff) (ifAllSmallThenSubSmall allSmall)   
 
+
+export 
+findProofIsDiffOrFail : (m:Nat) -> (v: Vect n Nat) -> IsDifferentT m v
+findProofIsDiffOrFail m [] = IsDiffNil
+findProofIsDiffOrFail m (x::xs) = case isLT m x of
+   Yes prfLeft => IsDiffSucc (Left prfLeft) (findProofIsDiffOrFail m xs)
+   No prfNo1 => case isLT x m of
+     Yes prfRight =>  IsDiffSucc (Right prfRight) (findProofIsDiffOrFail m xs)
+     No prfNo2 => assert_total $ idris_crash ("There exists no automatic proof that the Vector " ++ show (x::xs) ++ " is Injective (not all different) " ++ show m ++ " is not different to " ++ show x)
+     
+
+export 
+%hint
+findProofAllDiffOrFail : {v: Vect n Nat} -> AllDifferentT v
+findProofAllDiffOrFail {v = []} = AllDiffNil
+findProofAllDiffOrFail {v = (x::xs)} = AllDiffSucc (findProofIsDiffOrFail x xs) (findProofAllDiffOrFail {v = xs})
+
+export 
+%hint
+findProofAllSmallerOrFail : (m:Nat) -> (v: Vect n Nat) -> AllSmallerT v m
+findProofAllSmallerOrFail {m} {v = []} = ASNil
+findProofAllSmallerOrFail {m} {v = (x::xs)} = case isLT x m of
+  Yes prfLT => ASSucc prfLT (findProofAllSmallerOrFail {m = m} {v = xs})
+  No prfNo1 =>assert_total $ idris_crash ("There exists no automatic proof that the Vector " ++ show (x::xs) ++ " is Injective (not all smaller): " ++ show x ++ " is not smaller than " ++ show m)
+  
+export 
+%hint 
+findProofIsInjectiveTOrFail : {m:Nat} -> {v: Vect n Nat} -> IsInjectiveT m v
+findProofIsInjectiveTOrFail {m} {v} = IsInjectiveSucc (findProofAllDiffOrFail {v = v}) (findProofAllSmallerOrFail {m = m} {v = v})
+
+export 
+%hint 
+findProofIsInjectiveTk : {m: Nat -> Nat} -> {v: Nat-> Vect n Nat} -> ({k: Nat} -> IsInjectiveT (m k) (v k))
+findProofIsInjectiveTk {m} {v} = IsInjectiveSucc (findProofAllDiffOrFail {v = v k}) (findProofAllSmallerOrFail {m = m k} {v = v k})
+
 {-public export
 data EitherAnd : (sumType: Either a b) -> Type where
     EitherNil : EitherAnd sumType

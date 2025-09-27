@@ -561,49 +561,13 @@ lemmaControlledInj2 (S k) (S j) (S i) = IsInjectiveSucc
       (AllDiffSucc (IsDiffNil) (AllDiffNil))))
   (ASSucc (ltzss k) (ASSucc (LTESucc prf1) (ASSucc (LTESucc prf2) (ASNil))))
                     
-export 
-lemmaIsDiffGen : (m:Nat) -> (v: Vect n Nat) -> IsDifferentT m v
-lemmaIsDiffGen m [] = IsDiffNil
-lemmaIsDiffGen m (x::xs) = case isLT m x of
-   Yes prfLeft => IsDiffSucc (Left prfLeft) (lemmaIsDiffGen m xs)
-   No prfNo1 => case isLT x m of
-     Yes prfRight =>  IsDiffSucc (Right prfRight) (lemmaIsDiffGen m xs)
-     No prfNo2 => assert_total $ idris_crash ("There exists no automatic proof that the Vector " ++ show (x::xs) ++ " is Injective (not all different) " ++ show m ++ " is not different to " ++ show x)
-     
-   
-
-export 
-%hint
-lemmaAllDiffGen : {v: Vect n Nat} -> AllDifferentT v
-lemmaAllDiffGen {v = []} = AllDiffNil
-lemmaAllDiffGen {v = (x::xs)} = AllDiffSucc (lemmaIsDiffGen x xs) (lemmaAllDiffGen {v = xs})
-
-export 
-%hint
-lemmaAllSmallGen : (m:Nat) -> (v: Vect n Nat) -> AllSmallerT v m
-lemmaAllSmallGen {m} {v = []} = ASNil
-lemmaAllSmallGen {m} {v = (x::xs)} = case isLT x m of
-  Yes prfLT => ASSucc prfLT (lemmaAllSmallGen {m = m} {v = xs})
-  No prfNo1 =>assert_total $ idris_crash ("There exists no automatic proof that the Vector " ++ show (x::xs) ++ " is Injective (not all smaller): " ++ show x ++ " is not smaller than " ++ show m)
-  
- 
-
-export 
-%hint 
-lemmaIsInjectiveT : {m:Nat} -> {v: Vect n Nat} -> IsInjectiveT m v
-lemmaIsInjectiveT {m} {v} = IsInjectiveSucc (lemmaAllDiffGen {v = v}) (lemmaAllSmallGen {m = m} {v = v})
-
-export 
-%hint 
-lemmaIsInjectiveTk : {m: Nat -> Nat} -> {v: Nat-> Vect n Nat} -> ({k: Nat} -> IsInjectiveT (m k) (v k))
-lemmaIsInjectiveTk {m} {v} = IsInjectiveSucc (lemmaAllDiffGen {v = v k}) (lemmaAllSmallGen {m = m k} {v = v k})
 
 
 {-
 export
 
 lemmaSuccInjg: {k:Nat} -> IsInjectiveT (S (S k)) [S k, 0]
-lemmaSuccInjg {k} = lemmaIsInjectiveTk {m = \l => S (S k)} {v = \d => [ S d, 0]}
+lemmaSuccInjg {k} = findProofIsInjectiveTk {m = \l => S (S k)} {v = \d => [ S d, 0]}
 
 export
 
@@ -738,35 +702,35 @@ findFirstMissingFull {n} arr =
 
 export
 
-lemmaIsDiffGenDec : (m:Nat) -> (v: Vect n Nat) -> IsDifferentDec m v
-lemmaIsDiffGenDec m [] = IsDiffNilDec
-lemmaIsDiffGenDec m (x::xs) = case decEq m x of
-  No prfNo => IsDiffSuccDec (prfNo ) (lemmaIsDiffGenDec m xs)
+findProofIsDiffOrFailDec : (m:Nat) -> (v: Vect n Nat) -> IsDifferentDec m v
+findProofIsDiffOrFailDec m [] = IsDiffNilDec
+findProofIsDiffOrFailDec m (x::xs) = case decEq m x of
+  No prfNo => IsDiffSuccDec (prfNo ) (findProofIsDiffOrFailDec m xs)
   Yes prfLeft => assert_total $ idris_crash "There exists no automatic proof that the Vector is Injective"
 
 export 
     
-lemmaAllDiffGenDec : {v: Vect n Nat} -> AllDifferentDec v
-lemmaAllDiffGenDec {v = []} = AllDiffNilDec
-lemmaAllDiffGenDec {v = (x::xs)} = AllDiffSuccDec (lemmaIsDiffGenDec x xs) (lemmaAllDiffGenDec {v = xs})
+findProofAllDiffOrFailDec : {v: Vect n Nat} -> AllDifferentDec v
+findProofAllDiffOrFailDec {v = []} = AllDiffNilDec
+findProofAllDiffOrFailDec {v = (x::xs)} = AllDiffSuccDec (findProofIsDiffOrFailDec x xs) (findProofAllDiffOrFailDec {v = xs})
 
 export 
  
-lemmaAllSmallGenDec : (m:Nat) -> (v: Vect n Nat) -> AllSmallerT v m
-lemmaAllSmallGenDec {m} {v = []} = ASNil
-lemmaAllSmallGenDec {m} {v = (x::xs)} = case isLT x m of
+findProofAllSmallerOrFailDec : (m:Nat) -> (v: Vect n Nat) -> AllSmallerT v m
+findProofAllSmallerOrFailDec {m} {v = []} = ASNil
+findProofAllSmallerOrFailDec {m} {v = (x::xs)} = case isLT x m of
   No prfNo1 =>assert_total $ idris_crash "There exists no automatic proof that the Vector is Injective"
-  Yes prfLT => ASSucc prfLT (lemmaAllSmallGenDec {m = m} {v = xs})
+  Yes prfLT => ASSucc prfLT (findProofAllSmallerOrFailDec {m = m} {v = xs})
 
 export 
  
 lemmaIsInjectiveDec : {m:Nat} -> {v: Vect n Nat} -> IsInjectiveDec m v
-lemmaIsInjectiveDec {m} {v} = IsInjectiveSuccDec (lemmaAllDiffGenDec {v = v}) (lemmaAllSmallGenDec {m = m} {v = v})
+lemmaIsInjectiveDec {m} {v} = IsInjectiveSuccDec (findProofAllDiffOrFailDec {v = v}) (findProofAllSmallerOrFailDec {m = m} {v = v})
 
 export 
  
 lemmaIsInjectiveDecT : {m: Nat -> Nat} -> {v: Nat-> Vect n Nat} -> ({k: Nat} -> IsInjectiveDec (m k) (v k))
-lemmaIsInjectiveDecT {m} {v} = IsInjectiveSuccDec (lemmaAllDiffGenDec {v = v k}) (lemmaAllSmallGenDec {m = m k} {v = v k})
+lemmaIsInjectiveDecT {m} {v} = IsInjectiveSuccDec (findProofAllDiffOrFailDec {v = v k}) (findProofAllSmallerOrFailDec {m = m k} {v = v k})
 
 export
 

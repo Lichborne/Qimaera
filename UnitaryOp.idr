@@ -3,11 +3,8 @@ module UnitaryOp
 import Data.Vect
 import Data.Nat
 import Control.Monad.State
-import Decidable.Equality
 import System.File
 import Injection
-import Matrix
-import Complex
 import Lemmas
 import UnitaryLinear
 import UnitaryNoPrf
@@ -15,11 +12,11 @@ import UStateT
 import Control.Linear.LIO
 import LinearTypes
 import Data.String
-import Data.Maybe
-import QStateT
+import Matrix
 import Data.Linear.Notation
 import Data.Linear.Interface
 import Qubit
+import Complex
 
 
 ||| The UnitaryOpBad interface is used to abstract over the representation of a
@@ -67,39 +64,17 @@ interface UnitaryOp (0 t : Nat -> Type) where
   applyControlledAbs: {n : Nat} -> {i : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (t n) (t n) (LVect i Qubit))      
                    -> UStateT (t (S n)) (t (S n)) (LVect (S i) Qubit)
   
-  invertUST: (1_ : UStateT (t n) (t n) (LVect i Qubit)) -> (UStateT (t n) (t n) (LVect i Qubit))
+  adjointUST: (1_ : UStateT (t n) (t n) (LVect i Qubit)) -> (UStateT (t n) (t n) (LVect i Qubit))
 
   ||| sequence to the end
   run :  {i : Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LVect i Qubit) ) -> (LPair (t n) (LVect i Qubit))
 
-
-  exportTN :  {i : Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LVect i Qubit)) -> (t n)
-  exportTN {i = i} tn ust = let tnout # lvect = runUStateT tn ust in
+  exportSelf :  {i : Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LVect i Qubit)) -> (t n)
+  exportSelf {i = i} tn ust = let tnout # lvect = runUStateT tn ust in
                                       let () = discardq lvect in
                                           tnout
 
-  --------------------- Split Computation and Accompanying Utilities -------------------------
 
-  ||| sequence to the end with split computation
-  runSplit :  {i : Nat} -> {j:Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit)) ) 
-              -> (LPair (t n) (LPair (LVect i Qubit) (LVect j Qubit)))
-
-  ||| Abstract split application: helps with constructing circuits with parallel applications recursively (i.e. tensoring)
-  applyUnitaryAbsSplit : {n : Nat} -> {i : Nat} -> {j : Nat} -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit)))
-                         -> UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit))
-
-  ||| Apply the controlled version of a unitary. Implementations assume control goes at head of lvect list
-  applyControlledAbsSplit : {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit)))
-                             -> UStateT (t (S n)) (t (S n)) (LPair (LVect (S (i)) Qubit) (LVect j Qubit))
-  
-  |||recombine split computation
-  reCombine : {i:Nat} -> {j:Nat} ->  {n : Nat} -> (1 _ : LVect i Qubit) -> (1 _ : LVect j Qubit) -> UStateT (t n) (t n) (LVect (i+j) Qubit)
-  reCombine {i=i} is js =  pure $ LinearTypes.(++) is js  
-  
-  ||| Abstract recombination
-  reCombineAbs : {i:Nat} -> {j:Nat} -> {n : Nat} -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit))) 
-                -> UStateT (t n) (t n) (LVect (i + j) Qubit)
-  --------------------------------------------------------------------------------
 
 ------------- OTHER UTILITIES ------------
 ||| WHILE NOT STRICTLY A PART OF THE INTERFACE
@@ -110,7 +85,34 @@ interface UnitaryOp (0 t : Nat -> Type) where
 ||| for exporting an instance opf the Unitary algebraic datatype based on the unitary build inside UStateT
 ||| this is not in general doable, as it depends on the structure of the specific t n and whether it can be translated into 
 ||| a value of Unitary n, because the proofs are necessary to build an instance of the type
+export
 exportUnitary : UnitaryOp t => {i : Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LVect i Qubit)) -> (Unitary n)
+
+  --------------------- Split Computation and Accompanying Utilities -------------------------
+
+||| sequence to the end with split computation
+public export
+runSplit :  UnitaryOp t => {i : Nat} -> {j:Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit)) ) 
+            -> (LPair (t n) (LPair (LVect i Qubit) (LVect j Qubit)))
+
+public export            
+||| Abstract split application: Convenience function for avoiding proofs when dealing with multiple qubit list inputs/ancillae
+applyUnitaryAbsSplit : UnitaryOp t => {n : Nat} -> {i : Nat} -> {j : Nat} -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit)))
+                        -> UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit))
+public export
+||| Apply the controlled version of a unitary. Implementations assume control goes at head of lvect list
+applyControlledAbsSplit : UnitaryOp t => {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit)))
+                            -> UStateT (t (S n)) (t (S n)) (LPair (LVect (S (i)) Qubit) (LVect j Qubit))
+
+public export
+|||recombine split computation
+reCombine : UnitaryOp t => {i:Nat} -> {j:Nat} ->  {n : Nat} -> (1 _ : LVect i Qubit) -> (1 _ : LVect j Qubit) -> UStateT (t n) (t n) (LVect (i+j) Qubit)
+reCombine {i=i} is js =  pure $ LinearTypes.(++) is js  
+public export
+||| Abstract recombination
+reCombineAbs : UnitaryOp t => {i:Nat} -> {j:Nat} -> {n : Nat} -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit))) 
+              -> UStateT (t n) (t n) (LVect (i + j) Qubit)
+  --------------------------------------------------------------------------------
 
 ||| SWAP registers in parsing; an exchange of "wires", easy to make conditional 
 export                           
@@ -255,15 +257,15 @@ run' {i = i} simop ust = runUStateT simop ust
 
 ||| Implementation of exporting just a unitary out of SimulatedOp
 public export
-exportTN' : {i:Nat} -> (1_: SimulatedOp n) -> (1 _ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit) ) -> SimulatedOp n
-exportTN' {i = i} simop ust = let op # lvect = runUStateT simop ust in
+exportSelf' : {i:Nat} -> (1_: SimulatedOp n) -> (1 _ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit) ) -> SimulatedOp n
+exportSelf' {i = i} simop ust = let op # lvect = runUStateT simop ust in
                                       let () = discardq lvect in
                                           op
 
 ||| Implementation of exporting just a unitary out of SimulatedOp
 public export
 exportUnitary' : {i:Nat} -> (1_: SimulatedOp n) -> (1 _ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit) ) -> Unitary n
-exportUnitary' {i = i} simop ust = let (MkSimulatedOp qn un vn counter) = exportTN' simop ust in un
+exportUnitary' {i = i} simop ust = let (MkSimulatedOp qn un vn counter) = exportSelf' simop ust in un
 
 ||| Implementation of runSplit SimulatedOp
 public export
@@ -392,8 +394,8 @@ invert ust (MkSimulatedOp qn u v counter)=
             let unew = compose invu u in
                 (MkSimulatedOp qn unew v counter) # (lvOut)
 export
-invertUST' : (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)) -> (UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit))
-invertUST' ust = MkUST (invert ust)
+adjointUST' : (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)) -> (UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit))
+adjointUST' ust = MkUST (invert ust)
 
 -------------------------------------------------------------------------
 ||| Other situationally useful, but not necessary interface functions
@@ -456,19 +458,19 @@ UnitaryOp SimulatedOp where
   applyUnitaryOwn = applyUnitaryOwnSimulated
   applyUnitaryAbs = applyUnitaryAbsSimulated
   applyControlledAbs = applyControlAbsSimulated
-  invertUST = invertUST'
-  applyControlledAbsSplit = applyControlledSimulatedSplit
-  applyUnitaryAbsSplit = applyUnitaryAbsSplitSimulated
-  reCombineAbs = reCombineAbsSimulated
+  adjointUST = adjointUST'
+  
   run          = run' 
-  runSplit = runSplit'
-  exportTN = exportTN'
+  exportSelf = exportSelf'
 
 -------------------------------------------------------------------------
 
 
 
-{-}
+{-}applyControlledAbsSplit = applyControlledSimulatedSplit
+applyUnitaryAbsSplit = applyUnitaryAbsSplitSimulated
+reCombineAbs = reCombineAbsSimulated
+runSplit = runSplit'
     let ((MkSimulatedOp vacuousQS ui vi vacuousCounter) # lvect) = (UnitaryOp.run' (MkSimulatedOp (neutralIdPow i) (IdGate {n = i}) (fromVectN vect) i) ust) in
     let lvOut = (mergeLVects lvect lvInt) 
         lvFin # vect = distributeDupedLVectVect lvOut
