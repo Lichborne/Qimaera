@@ -12,7 +12,7 @@ import QStateT
 import UnitaryLinear
 import Qubit
 import Lemmas
-import SimulatedCircuitAlt
+import BinarySimulatedOpAlt
 --import UnitaryOpTracked
 --import QuantumOpTracked
 
@@ -137,7 +137,7 @@ testQFTAbs3 = (do
   pure bs)
 
 public export 
-||| Run with 12 qubits with SimulatedCircuit
+||| Run with 12 qubits with BinarySimulatedOp
 runQFTAbs12 : UnitaryOp t => QuantumOp t => IO (Vect 12 Bool)
 runQFTAbs12 = runQ {t=t} (do
     qs <- newQubits 12 {t = t}
@@ -145,8 +145,8 @@ runQFTAbs12 = runQ {t=t} (do
     measureAll qfts)
 
 public export
-||| Test with 12 qubits with SimulatedCircuit
+||| Test with 12 qubits with BinarySimulatedOp
 testQFTAbs12 : IO (Vect 12 Bool)
 testQFTAbs12 = (do
-  bs <- runQFTAbs12 { t = SimulatedCircuit}
+  bs <- runQFTAbs12 { t = BinarySimulatedOp}
   pure bs)

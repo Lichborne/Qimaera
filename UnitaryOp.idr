@@ -63,6 +63,10 @@ interface UnitaryOp (0 t : Nat -> Type) where
   ||| This will usually be fulfulled automatically by construction
   applyControlledAbs: {n : Nat} -> {i : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (t n) (t n) (LVect i Qubit))      
                    -> UStateT (t (S n)) (t (S n)) (LVect (S i) Qubit)
+
+  ||| Abstract split application: helps with constructing circuits with parallel applications recursively (i.e. tensoring)
+  applyParallel: {n : Nat} -> {i : Nat} -> {j : Nat} -> (1_ : UStateT (t n) (t n) ((LVect i Qubit)))
+                        -> (1_ : UStateT (t n) (t n) ((LVect j Qubit))) -> UStateT (t n) (t n) (LVect (i + j) Qubit)
   
   adjointUST: (1_ : UStateT (t n) (t n) (LVect i Qubit)) -> (UStateT (t n) (t n) (LVect i Qubit))
 
@@ -97,11 +101,11 @@ runSplit :  UnitaryOp t => {i : Nat} -> {j:Nat} -> (1_: (t n)) -> (1_ : UStateT 
 
 public export            
 ||| Abstract split application: Convenience function for avoiding proofs when dealing with multiple qubit list inputs/ancillae
-applyUnitaryAbsSplit : UnitaryOp t => {n : Nat} -> {i : Nat} -> {j : Nat} -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit)))
+applyWithSplitLVects : UnitaryOp t => {n : Nat} -> {i : Nat} -> {j : Nat} -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit)))
                         -> UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit))
 public export
 ||| Apply the controlled version of a unitary. Implementations assume control goes at head of lvect list
-applyControlledAbsSplit : UnitaryOp t => {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit)))
+applyControlWithSplitLVects : UnitaryOp t => {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit)))
                             -> UStateT (t (S n)) (t (S n)) (LPair (LVect (S (i)) Qubit) (LVect j Qubit))
 
 public export
@@ -359,18 +363,31 @@ applyControlAbsSimulated: {n : Nat} -> {i : Nat} -> (1 _ : Qubit) -> (1_ : UStat
     UStateT (SimulatedOp (S n)) (SimulatedOp (S n)) (LVect (S i) Qubit)
 applyControlAbsSimulated ctrl ust = MkUST (applyControlSimulated' ctrl ust)   
 
-
-applyUnitaryAbsSplit' : {n : Nat} -> {i : Nat} -> {j : Nat} -> (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LPair (LVect i Qubit) (LVect j Qubit)))
+applyWithSplitLVects' : {n : Nat} -> {i : Nat} -> {j : Nat} -> (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LPair (LVect i Qubit) (LVect j Qubit)))
                          -> (1_: SimulatedOp n) -> LPair (SimulatedOp n) (LPair (LVect i Qubit) (LVect j Qubit))
-applyUnitaryAbsSplit' ust (MkSimulatedOp qs un v counter) = 
+applyWithSplitLVects' ust (MkSimulatedOp qs un v counter) = 
   let ((MkSimulatedOp vacuousQS unew vnew vacuousCounter) # lvect) = runUStateT (MkSimulatedOp qs un v counter) ust in
       let unew = compose unew un in
           do ((MkSimulatedOp qs unew vnew counter) # (lvect))
 
 ||| Implementation of abstract split application - representationally useful
-applyUnitaryAbsSplitSimulated : {n : Nat} -> {i : Nat} -> {j : Nat} -> (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LPair (LVect i Qubit) (LVect j Qubit)))
+applyWithSplitLVectsSimulated : {n : Nat} -> {i : Nat} -> {j : Nat} -> (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LPair (LVect i Qubit) (LVect j Qubit)))
                          -> UStateT (SimulatedOp n) (SimulatedOp n) (LPair (LVect i Qubit) (LVect j Qubit))
-applyUnitaryAbsSplitSimulated ust = MkUST (applyUnitaryAbsSplit' ust)
+applyWithSplitLVectsSimulated ust = MkUST (applyWithSplitLVects' ust)
+
+applyParallelSimulated': {n : Nat} -> {i : Nat} -> (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit))     
+                   -> (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect j Qubit))   
+                   -> (1 _ : SimulatedOp n) -> LPair (SimulatedOp n) (LVect (i + j) Qubit)
+applyParallelSimulated' ust1 ust2 (MkSimulatedOp qs un v counter) = 
+  let ((MkSimulatedOp vacuousQS1 unew1 vnew1 vacuousCounter1) # lvecti) = runUStateT (MkSimulatedOp qs IdGate v counter) ust1 in -- there are multiple choices for what order to do what in, this is one correct one
+    let ((MkSimulatedOp vacuousQS2 unew2 vnew2 vacuousCounter2) # lvectj) = runUStateT (MkSimulatedOp qs IdGate v counter) ust2 in
+        let unewest = compose unew1 un in
+          let uOut = compose unew2 unewest in
+            do ((MkSimulatedOp qs uOut vnew2 counter) # (lvecti ++ lvectj))
+
+applyParallelSimulated: {n : Nat} -> {i : Nat} -> {j : Nat} -> (1_ : UStateT (SimulatedOp n) (SimulatedOp n) ((LVect i Qubit)))
+                        -> (1_ : UStateT (SimulatedOp n) (SimulatedOp n) ((LVect j Qubit))) -> UStateT (SimulatedOp n) (SimulatedOp n) (LVect (i + j) Qubit)
+applyParallelSimulated ust1 ust2 = MkUST (applyParallelSimulated' ust1 ust2)
 
 ||| Helper for implementation of abstract controlled split application 
 applyControlledUSplitSim' : {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LPair (LVect i Qubit) (LVect j Qubit)))
@@ -458,6 +475,7 @@ UnitaryOp SimulatedOp where
   applyUnitaryOwn = applyUnitaryOwnSimulated
   applyUnitaryAbs = applyUnitaryAbsSimulated
   applyControlledAbs = applyControlAbsSimulated
+  applyParallel = applyParallelSimulated 
   adjointUST = adjointUST'
   
   run          = run' 
@@ -467,8 +485,8 @@ UnitaryOp SimulatedOp where
 
 
 
-{-}applyControlledAbsSplit = applyControlledSimulatedSplit
-applyUnitaryAbsSplit = applyUnitaryAbsSplitSimulated
+{-}applyControlWithSplitLVects = applyControlledSimulatedSplit
+applyWithSplitLVects = applyWithSplitLVectsSimulated
 reCombineAbs = reCombineAbsSimulated
 runSplit = runSplit'
     let ((MkSimulatedOp vacuousQS ui vi vacuousCounter) # lvect) = (UnitaryOp.run' (MkSimulatedOp (neutralIdPow i) (IdGate {n = i}) (fromVectN vect) i) ust) in

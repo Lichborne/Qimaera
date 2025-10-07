@@ -54,6 +54,18 @@ interface QuantumOp (0 t : Nat -> Type) where
   applyHQ q = do
               q <- applyUST {t = t} (applyH {t = t} {n = n } (q))
               pure q
+  
+  ||| Apply Hadamard to specified qubit
+  applyPQ: UnitaryOp t => {n : Nat} -> (d:Double) -> (1_ : Qubit) -> QStateT (t n) (t n) (LVect 1 Qubit)
+  applyPQ d q = do
+              q <- applyUST {t = t} (applyP d {t = t} {n = n } (q))
+              pure q
+
+  ||| Apply  CNOT with specified contorl and target
+  applyCNOTQ: UnitaryOp t => {n : Nat} -> (1_ : Qubit) -> (1_ : Qubit) -> QStateT (t n) (t n) (LVect 2 Qubit)
+  applyCNOTQ c q = do
+              cq <- applyUST {t = t} (applyCNOT {t = t} {n = n } c (q))
+              pure cq
 
   ||| Measure some qubits in a quantum state
   measure : {n : Nat} -> {i : Nat} -> (1 _ : LVect i Qubit) -> QStateT (t (i + n)) (t n) (Vect i Bool)
@@ -143,10 +155,11 @@ applyCirc {n = n} v (CNOT c t g) st =
 
 applyUnitary' : {n : Nat} -> {i : Nat} -> ( 1 _ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit) ) -> (1 _ : SimulatedOp n) -> R (LPair (SimulatedOp n) (LVect i Qubit))
 applyUnitary' ust (MkSimulatedOp qs un v counter) = 
-  let (opOut # lvect) = (UnitaryOp.run' (MkSimulatedOp qs un v counter) ust) in
+  let (MkSimulatedOp qsOut unOut vOut counterOut) # lvect = (UnitaryOp.run' (MkSimulatedOp qs un v counter) ust) in
   let --(qs # v') # ind = listIndices opOut lvect 
-      qs2 = applyCirc (toVectN v) un opOut
+      qs2 = applyCirc (toVectN v) unOut (MkSimulatedOp qsOut unOut vOut counterOut)
   in pure1 (Builtin.(#) qs2  lvect)
+
     
 ||| Apply a unitary circuit to a SimulatedOp Alt
 export

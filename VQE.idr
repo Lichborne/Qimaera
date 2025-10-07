@@ -16,7 +16,7 @@ import Qubit
 import Lemmas
 import UnitaryOp
 import UStateT
-import SimulatedCircuitAlt
+import BinarySimulatedOpAlt
 --import UnitarySimulated
 --import UnitaryNoPrf
 
@@ -412,5 +412,5 @@ testVQE : IO Double
 testVQE = do
   putStrLn "Test VQE"
   let hamiltonian = [(2, [PauliX, PauliY]),(3,[PauliZ, PauliI])]
-  VQEOg {t = SimulatedCircuit} 2 hamiltonian 1 2 1
+  VQEOg {t = BinarySimulatedOp} 2 hamiltonian 1 2 1
 

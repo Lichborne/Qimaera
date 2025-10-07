@@ -29,7 +29,7 @@ import Matrix
 import UnitarySimulated
 import UnitaryNoPrfSim
 import ModularExponentiation
-import SimulatedCircuitAlt
+import BinarySimulatedOpAlt
 
 
 

@@ -110,7 +110,7 @@ ifAllSmallThenPlusSmall {v = (x::xs)} {m} (S n) (ASSucc (lt) prev) =  ASSucc (pl
 public export
 data IsDifferentT : (m: Nat) -> (v: Vect n Nat) -> Type where
     IsDiffNil  : IsDifferentT m []
-    IsDiffSucc : (Either (LT m x) (LT x m)) -> (soFarDiff: IsDifferentT m xs)-> IsDifferentT m (x :: xs)
+    IsDiffSucc : (Either (LT m x) (LT x m)) -> (soFarDiff: IsDifferentT m xs) -> IsDifferentT m (x :: xs)
 
 export
 isDifferentT : Nat -> Vect n Nat -> Type
@@ -225,6 +225,148 @@ ifInjectiveDecThenSubInjectiveDec (IsInjectiveSuccDec allDiff allSmall) =
 
 
 export 
+findProofIsDiffOrNothing : (m:Nat) -> (v: Vect n Nat) -> Maybe (IsDifferentT m v)
+findProofIsDiffOrNothing m [] = Just IsDiffNil
+findProofIsDiffOrNothing m (x::xs) = case isLT m x of
+   Yes prfLeft => case (findProofIsDiffOrNothing m xs) of 
+    Just isdif => Just $ IsDiffSucc (Left prfLeft) isdif
+    Nothing => Nothing
+   No prfNo1 => case isLT x m of
+     Yes prfRight => case (findProofIsDiffOrNothing m xs) of 
+        Just isdif => Just $ IsDiffSucc (Right prfRight) isdif
+        Nothing => Nothing
+     No prfNo2 => Nothing
+     _ => Nothing
+   _ => Nothing
+
+isDifSProp : (IsDifferentT m xs -> Void) -> (IsDifferentT m (x :: xs)) -> Void
+isDifSProp IsDiffNil void IsDiffNil impossible
+isDifSProp (IsDiffSucc either prev) void IsDiffNil impossible
+isDifSProp (IsDiffSucc either prev) v (IsDiffSucc eitherx IsDiffNil) impossible
+isDifSProp f (IsDiffSucc eitherx prevx) = f prevx
+
+eitherVoid: (left -> Void) -> (right-> Void) -> Either left right -> Void
+eitherVoid fleft fright (Left l) = fleft l
+eitherVoid fleft fright (Right r) = fright r
+
+eitherVoidThenNotDif : (Either (LTE (S m) x) (LTE (S x) m) -> Void) -> IsDifferentT m (x :: xs) -> Void
+eitherVoidThenNotDif feither IsDiffNil impossible
+eitherVoidThenNotDif feither (IsDiffSucc either prev) = feither either
+
+
+export 
+eitherIsDiffOrNot : (m:Nat) -> (v: Vect n Nat) -> Either (IsDifferentT m v) (IsDifferentT m v -> Void)
+eitherIsDiffOrNot m [] = Left IsDiffNil
+eitherIsDiffOrNot m (x::xs) = 
+    case isLT m x of
+        Yes prfLeft => case (eitherIsDiffOrNot m xs) of 
+            Left isdif => Left $ IsDiffSucc (Left prfLeft) isdif
+            Right notdif => Right (isDifSProp (notdif))
+        No prfNo1 => case isLT x m of
+            Yes prfRight => case (eitherIsDiffOrNot m xs) of 
+                Left isdif => Left $ IsDiffSucc (Right prfRight) isdif
+                Right notdif => Right (isDifSProp (notdif))
+            No prfNo2 => Right (eitherVoidThenNotDif $ eitherVoid prfNo1 prfNo2)
+  
+
+export 
+findProofAllDiffOrNothing : {v: Vect n Nat} -> Maybe (AllDifferentT v)
+findProofAllDiffOrNothing {v = []} = Just AllDiffNil
+findProofAllDiffOrNothing {v = (x::xs)} = case (findProofIsDiffOrNothing x xs) of 
+    Just isdif => case (findProofAllDiffOrNothing {v = xs}) of 
+        Just alldif => Just $ AllDiffSucc isdif alldif
+        Nothing => Nothing
+    Nothing => Nothing
+
+allDifSProp : (AllDifferentT xs -> Void) -> (AllDifferentT (x :: xs)) -> Void
+allDifSProp AllDiffNil void AllDiffNil impossible
+allDifSProp (AllDiffSucc either prev) void AllDiffNil impossible
+allDifSProp (AllDiffSucc either prev) v (AllDiffSucc eitherx AllDiffNil) impossible
+allDifSProp f (AllDiffSucc eitherx prevx) = f prevx
+
+notAllDiffProp : (IsDifferentT x xs -> Void) -> AllDifferentT (x :: xs) -> Void
+notAllDiffProp tovoid AllDiffNil impossible
+notAllDiffProp tovoid (AllDiffSucc isdif prev) = tovoid isdif
+
+
+export 
+%hint
+eitherAllDiffOrNot  : {v: Vect n Nat} -> Either (AllDifferentT v) (AllDifferentT v -> Void)
+eitherAllDiffOrNot  {v = []} = Left AllDiffNil
+eitherAllDiffOrNot {v = (x::xs)} = case (eitherIsDiffOrNot x xs) of 
+    Left isdif => case (eitherAllDiffOrNot {v = xs}) of 
+        Left alldif => Left (AllDiffSucc isdif alldif)
+        Right notalldif => Right (allDifSProp notalldif)
+    Right notalldif => Right (notAllDiffProp (notalldif))
+
+
+export 
+findProofAllSmallerOrNothing : (m:Nat) -> (v: Vect n Nat) -> Maybe (AllSmallerT v m)
+findProofAllSmallerOrNothing {m} {v = []} = Just ASNil
+findProofAllSmallerOrNothing {m} {v = (x::xs)} = case isLT x m of
+  Yes prfLT => case (findProofAllSmallerOrNothing {m = m} {v = xs}) of 
+    Just allsmaller => Just $ ASSucc prfLT allsmaller
+    Nothing => Nothing
+  No prfNo1 => Nothing
+
+allSmallSProp : (AllSmallerT xs m -> Void) -> AllSmallerT (x :: xs) m -> Void
+allSmallSProp ASNil void ASNil impossible
+allSmallSProp (ASSucc lt prev) void ASNil impossible
+allSmallSProp (ASSucc lt prev) v (ASSucc ltx ASNil) impossible
+allSmallSProp f (ASSucc ltx prevx) = f prevx
+
+notSmallerProp : (LTE (S x) m -> Void) -> AllSmallerT (x :: xs) m -> Void
+notSmallerProp tovoid ASNil impossible
+notSmallerProp tovoid (ASSucc lt prev) = tovoid lt
+
+export 
+%hint
+eitherAllSmallerOrNot : (m:Nat) -> (v: Vect n Nat) -> Either (AllSmallerT v m) ((AllSmallerT v m) -> Void)
+eitherAllSmallerOrNot  {m} {v = []} = Left ASNil
+eitherAllSmallerOrNot  {m} {v = (x::xs)} = case isLT x m of
+  Yes prfLT => case (eitherAllSmallerOrNot {m = m} {v = xs}) of 
+    Left allsmaller => Left $ ASSucc prfLT allsmaller
+    Right notallsmaller => Right $ allSmallSProp notallsmaller
+  No notsmaller => Right $ notSmallerProp notsmaller
+
+
+export  
+findProofIsInjectiveTOrNothing : {m:Nat} -> {v: Vect n Nat} -> Maybe (IsInjectiveT m v)
+findProofIsInjectiveTOrNothing {m} {v} = case (findProofAllDiffOrNothing {v = v}) of 
+    Just alldif => case (findProofAllSmallerOrNothing {m = m} {v = v}) of 
+        Just allsmaller => Just $ IsInjectiveSucc alldif allsmaller
+        Nothing => Nothing
+    Nothing => Nothing
+
+
+notInjIfNotSmallProp : (AllSmallerT v m -> Void) -> IsInjectiveT m v -> Void
+notInjIfNotSmallProp tovoid (IsInjectiveSucc alldif allsmaller) = tovoid allsmaller    
+
+notInjIfNotDifProp : (AllDifferentT v -> Void) -> IsInjectiveT m v -> Void
+notInjIfNotDifProp tovoid (IsInjectiveSucc alldif allsmaller) = tovoid alldif   
+
+
+export 
+%hint 
+eitherIsInjectiveTOrNot : {m:Nat} -> {v: Vect n Nat} -> Either (IsInjectiveT m v) ((IsInjectiveT m v) -> Void)
+eitherIsInjectiveTOrNot {m} {v} = case (eitherAllDiffOrNot {v = v}) of 
+    Left alldif => case (eitherAllSmallerOrNot {m = m} {v = v}) of 
+        Left allsmaller => Left $ IsInjectiveSucc alldif allsmaller
+        Right notallsmaller => Right $ notInjIfNotSmallProp notallsmaller
+    Right notalldiff => Right $ notInjIfNotDifProp notalldiff
+
+
+export 
+%hint
+decInj : {m:Nat} -> {v : Vect n Nat} -> Dec (IsInjectiveT m v) 
+decInj {m} {v} = case eitherIsInjectiveTOrNot {m = m} {v = v} of
+    Left prfYes => Yes prfYes
+    Right prfNo => No prfNo 
+
+{-
+
+export 
+%hint
 findProofIsDiffOrFail : (m:Nat) -> (v: Vect n Nat) -> IsDifferentT m v
 findProofIsDiffOrFail m [] = IsDiffNil
 findProofIsDiffOrFail m (x::xs) = case isLT m x of
@@ -234,29 +376,29 @@ findProofIsDiffOrFail m (x::xs) = case isLT m x of
      No prfNo2 => assert_total $ idris_crash ("There exists no automatic proof that the Vector " ++ show (x::xs) ++ " is Injective (not all different) " ++ show m ++ " is not different to " ++ show x)
      
 
+
 export 
-%hint
 findProofAllDiffOrFail : {v: Vect n Nat} -> AllDifferentT v
 findProofAllDiffOrFail {v = []} = AllDiffNil
 findProofAllDiffOrFail {v = (x::xs)} = AllDiffSucc (findProofIsDiffOrFail x xs) (findProofAllDiffOrFail {v = xs})
 
+
 export 
-%hint
 findProofAllSmallerOrFail : (m:Nat) -> (v: Vect n Nat) -> AllSmallerT v m
 findProofAllSmallerOrFail {m} {v = []} = ASNil
 findProofAllSmallerOrFail {m} {v = (x::xs)} = case isLT x m of
   Yes prfLT => ASSucc prfLT (findProofAllSmallerOrFail {m = m} {v = xs})
-  No prfNo1 =>assert_total $ idris_crash ("There exists no automatic proof that the Vector " ++ show (x::xs) ++ " is Injective (not all smaller): " ++ show x ++ " is not smaller than " ++ show m)
+  No prfNo1 => assert_total $ idris_crash ("There exists no automatic proof that the Vector " ++ show (x::xs) ++ " is Injective (not all smaller): " ++ show x ++ " is not smaller than " ++ show m)
   
 export 
-%hint 
 findProofIsInjectiveTOrFail : {m:Nat} -> {v: Vect n Nat} -> IsInjectiveT m v
 findProofIsInjectiveTOrFail {m} {v} = IsInjectiveSucc (findProofAllDiffOrFail {v = v}) (findProofAllSmallerOrFail {m = m} {v = v})
 
-export 
-%hint 
+export  
 findProofIsInjectiveTk : {m: Nat -> Nat} -> {v: Nat-> Vect n Nat} -> ({k: Nat} -> IsInjectiveT (m k) (v k))
 findProofIsInjectiveTk {m} {v} = IsInjectiveSucc (findProofAllDiffOrFail {v = v k}) (findProofAllSmallerOrFail {m = m k} {v = v k})
+
+
 
 {-public export
 data EitherAnd : (sumType: Either a b) -> Type where
