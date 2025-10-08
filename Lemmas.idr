@@ -12,7 +12,6 @@ import public Data.Linear.Notation
 import public Data.Linear.Interface
 import System
 import Data.Linear
-import Qubit
 
 
 %default total

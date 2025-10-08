@@ -358,8 +358,15 @@ eitherIsInjectiveTOrNot {m} {v} = case (eitherAllDiffOrNot {v = v}) of
 
 export 
 %hint
-decInj : {m:Nat} -> {v : Vect n Nat} -> Dec (IsInjectiveT m v) 
-decInj {m} {v} = case eitherIsInjectiveTOrNot {m = m} {v = v} of
+decInj : (m:Nat) -> (v : Vect n Nat) -> Dec (IsInjectiveT m v) 
+decInj m v = case eitherIsInjectiveTOrNot {m = m} {v = v} of
+    Left prfYes => Yes prfYes
+    Right prfNo => No prfNo 
+
+export   
+%hint
+decInjHint : {m:Nat} -> {v : Vect n Nat} -> Dec (IsInjectiveT m v) 
+decInjHint {m} {v} = case eitherIsInjectiveTOrNot {m = m} {v = v} of
     Left prfYes => Yes prfYes
     Right prfNo => No prfNo 
 
@@ -405,3 +412,4 @@ data EitherAnd : (sumType: Either a b) -> Type where
     EitherNil : EitherAnd sumType
     EitherCons : (e : sumType) -> (es: EitherAnd (Left e)) -> EitherAnd sum
 -}
+

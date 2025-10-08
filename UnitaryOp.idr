@@ -277,11 +277,21 @@ runSplit' : {i:Nat} -> {j:Nat} -> (1_: SimulatedOp n) -> (1 _ : UStateT (Simulat
                 -> LPair (SimulatedOp n) (LPair (LVect i Qubit) (LVect j Qubit))
 runSplit' {i = i} simop ust = runUStateT simop ust
 
+failedIoOp : {n:Nat} ->  (v: Vect i Qubit) -> (un: Unitary n) -> (ui: Unitary i) -> IO ()
+failedIoOp {n} v un ui = do
+        () <- putStrLn ("The vector " ++ show (toVectN v) ++ "is not Injective with respect to " ++ show n ++ ".")
+        () <- putStrLn ("Therefore the application of " ++ show ui ++ " to " ++ show un ++ " could not be carried out.")
+        pure () 
+
 ||| Helper for implementation of  applyUnitary
 applyUnitary' : {n : Nat} -> {i : Nat} -> --let lvOut # vect = distributeDupedLVectVect lvIn in ( MkUnitary (apply ui u vect) ) # lvOut
                 (1 _ : LVect i Qubit) -> Unitary i -> (1 _ : SimulatedOp n) -> (LPair (SimulatedOp n) (LVect i Qubit))
-applyUnitary' lvIn ui (MkSimulatedOp qs un v counter)= let lvOut # vect = distributeDupedLVectVect lvIn in 
-  (MkSimulatedOp qs ((apply (ui) un vect)) v counter) # lvOut
+applyUnitary' {n} {i} lvIn ui (MkSimulatedOp qs un v counter)= 
+  let lvOut # vect = distributeDupedLVectVect lvIn in 
+    case decInj n vect of
+      Yes prfInj => (MkSimulatedOp qs ((apply (ui) un vect)) v counter) # lvOut
+      No prfNotInj => (MkSimulatedOp qs (un) v counter) # lvOut
+  
 
 ||| SimulatedOp implementation of applyUnitary
 export

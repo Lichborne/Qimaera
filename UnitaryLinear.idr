@@ -28,6 +28,17 @@ data Unitary : Nat -> Type where
             {auto prf1 : LT c n} -> {auto prf2 : LT t n} -> {auto prf3 :  Either (LT c t) (LT t c) } -> 
             (1 _ : Unitary n) -> Unitary n
 
+data ApplicationError : Nat -> Nat -> Type where
+  MkApplicationError : Unitary i -> Unitary n -> Vect i Nat -> ApplicationError i n     
+------------------------Duplication Utility---------------------
+||| Consume a linear unitary (used in case application fails)
+private
+consumeU : (1_ : Unitary n) -> ()
+consumeU IdGate = ()
+consumeU (H j g  ) = consumeU g 
+consumeU (P p j g ) = consumeU g 
+consumeU (CNOT c t g) = consumeU g
+
 -------------------------------APPLY---------------------------
 |||Apply a smaller circuit of size i to a bigger one of size n
 |||The vector of wires on which we apply the circuit must follow some constraints:
@@ -50,6 +61,25 @@ apply {i} {n} (CNOT c t {prf1} {prf2} {prf3} g1) g2 v =
       prf5 = indexInjectiveVect t n v {prf = prf}
       prf6 = differentIndexInjectiveVect c t n {prf1 = prf3} v {prf2 = prf} {prf3 = prf1} {prf4 = prf2}
   in CNOT (indexLT c v) (indexLT t v) {prf1 = prf4} {prf2 = prf5} {prf3 = prf6} (apply g1 g2 v)
+
+public export
+applyOrError : {i : Nat} -> {n : Nat} -> 
+        (1 _ : Unitary i) -> (1 _ : Unitary n) -> 
+        (v : Vect i Nat) -> 
+        Unitary n
+applyOrError IdGate g2 _ = g2
+applyOrError (H j g1) g2 v = case decInj n v of 
+  Yes prf => let prf1 = indexInjectiveVect j n v {prf} in H (indexLT j v) {prf = prf1} (apply g1 g2 v)
+  No contra => let () = consumeU g1 in g2
+applyOrError (P p j g1) g2 v = case decInj n v of 
+  Yes prf => let prf1 = indexInjectiveVect j n v {prf} in P p (indexLT j v) {prf = prf1} (apply g1 g2 v)
+  No contra => let () = consumeU g1 in g2
+applyOrError {i} {n} (CNOT c t {prf1} {prf2} {prf3} g1) g2 v = case decInj n v of 
+  Yes prf => let prf4 = indexInjectiveVect c n v {prf = prf}
+                 prf5 = indexInjectiveVect t n v {prf = prf}
+                 prf6 = differentIndexInjectiveVect c t n {prf1 = prf3} v {prf2 = prf} {prf3 = prf1} {prf4 = prf2}
+                 in CNOT (indexLT c v) (indexLT t v) {prf1 = prf4} {prf2 = prf5} {prf3 = prf6} (apply g1 g2 v)
+  No contra => let () = consumeU g1 in g2
 
 public export partial -- not actually partial, just relevant proof of impossibility does not exist of other cases
 apply' : {i : Nat} -> {n : Nat} -> 
