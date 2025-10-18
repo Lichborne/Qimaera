@@ -81,6 +81,8 @@ applyOrError {i} {n} (CNOT c t {prf1} {prf2} {prf3} g1) g2 v = case decInj n v o
                  in CNOT (indexLT c v) (indexLT t v) {prf1 = prf4} {prf2 = prf5} {prf3 = prf6} (apply g1 g2 v)
   No contra => let () = consumeU g1 in g2
 
+
+  
 public export partial -- not actually partial, just relevant proof of impossibility does not exist of other cases
 apply' : {i : Nat} -> {n : Nat} -> 
         (1 _ : Unitary i) -> (1 _ : Unitary n) -> 
