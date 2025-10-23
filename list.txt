@@ -1,0 +1,77 @@
+quantum modular exponentiation DONE
+
+housekeeping (NAMES!) TO DO
+
+tensoring (maybe) DONE
+
+Idris 0.7.0
+
+unnecessary proof obligations check again MORE OR LESS DONE
+
+marketing strategy (Shor's? title? " Type-Safe high-level Object Oriented (abstract interfaces, opaque types) Quantum Programming with OOP via linear dependent types in qtt")
+
+names for linear things
+
+link together figures from paper
+
+alternative quantumOp
+
+
+
+
+visualization tools
+
+mkqubit
+
+think about paper
+
+
+implement some protocols
+look at what qiskit can do, and implement a few things
+
+
+fix coinflips
+
+example of a big thing
+
+relationship to configurations in general (qlc)
+
+analogy to configurations, opsem qlc, with tensoring in unitaryop (abssplit)
+
+nice table? (of correspondences)
+
+
+Section 4. Unitaries in Qimaera 2.0
+
+    Explanation of O.G. Unitary Type
+        comparison 1 with sqir - objective information; grover or qft WF WT (end up writing nonsesne, extra predicate)
+        issues for programming (this isnt an issue for sqir necessarily because it is meant for proofs)
+            we are focusing on effectful programming and itneraction with idris, they are focusing on quantum circuits
+    New way -how it works, how it's better
+    
+    composition,application being similar
+
+    why this works 
+        general Object oriented stuff
+        linear state trasnformer monad
+            linearity and dependency
+        specifically: the structure of InjectiveT, ention assert_total
+    
+    comparison: reasonable assurance of saftey, but this is metatheoretical assurance; anyway idris is not certified
+            dig up a quote that idris cannot be used for theorem proving (should not) edwin brady or HAL
+            expressivity
+            how cumbersome something is
+
+tensoring and quantum configurations could happen in quantum op as well (splitting)
+
+code reuse - things looking similar 
+
+spellcheck
+
+
+||| Abstract split application: helps with constructing circuits with parallel applications recursively (i.e. tensoring)
+  applyWithSplitLVects : {n : Nat} -> {i : Nat} -> {j : Nat} -> (1_ : UStateT (t n) (t n) ((LVect j Qubit)))
+                        -> (1_ : UStateT (t n) (t n) ((LVect i Qubit)))
+                         -> UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit))
+
+--log 4 -p contrib -p linear UnitaryOp.idr
