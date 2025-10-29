@@ -304,8 +304,10 @@ applyUnitaryOwn' : {n : Nat} -> {i : Nat} -> (1 _ : SimulatedOp i) -> (1 _ : LVe
    (1 _ : SimulatedOp n) -> (LPair (SimulatedOp n) (LVect i Qubit))
 applyUnitaryOwn' {n} {i} (MkSimulatedOp vacuousQS uis vacuousV vacuousC) lvIn (MkSimulatedOp qs un v counter) = 
     let lvOut # vect = distributeDupedLVectVect lvIn in 
-      let unew = apply uis un (vect) in
-        do ((MkSimulatedOp qs unew v counter) # (lvOut))
+      case decInj n vect of 
+          Yes prfYes => let unew = apply uis un (vect) {prf = prfYes} in
+                        do ((MkSimulatedOp qs unew v counter) # (lvOut))
+          No prfNo => (MkSimulatedOp qs un v counter) # lvOut
 
 ||| SimulatedOp implementation of applyUnitaryOwn (using self-defined datatype for unitaries)
 export
@@ -348,8 +350,10 @@ applyControlOnly' : {n : Nat} -> {i : Nat} -> (1 _ : SimulatedOp i) -> (1 _ : Qu
    (1 _ : SimulatedOp n) -> (LPair (SimulatedOp n) (LVect (S i) Qubit))
 applyControlOnly' {n} {i} (MkSimulatedOp vacuousQS uis vi vacuousC) q (MkSimulatedOp qs un v counter) =
       let (q, k) = qubitToNatPair q in
-        let unew = apply (controlled uis) un ((k:: (toVectN vi))) in
-          do ((MkSimulatedOp qs unew v counter) # (q :: toLVectQQ vi))
+        case decInj n (k:: (toVectN vi)) of 
+          Yes prfYes => let unew = apply (controlled uis) un ((k:: (toVectN vi))) {prf = prfYes} in
+                        do ((MkSimulatedOp qs unew v counter) # (q :: toLVectQQ vi))
+          No prfNo => (MkSimulatedOp qs un v counter) # (q :: toLVectQQ vi)
 
 --(1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LPair Qubit (LVect i Qubit))) ->
 export
@@ -365,8 +369,10 @@ applyControlSimulated' {n} q ust (MkSimulatedOp qsn usn vsn csn)=
   let (q, k) = qubitToNatPair q in
     let vn = findInLinQ q vsn in
       let (MkSimulatedOp dummyqs un vn dummyc) # lvOut = runUStateT (MkSimulatedOp (neutralIdPow n) (IdGate {n = n}) vn n) ust in
-        let unew = apply (controlled un) usn (k :: (toVectN vn)) in
-            (MkSimulatedOp qsn unew vsn csn) # (q :: lvOut)
+           case decInj (S n) (k :: (toVectN vn)) of 
+            Yes prfYes => let unew = apply (controlled un) usn (k :: (toVectN vn)) {prf = prfYes} in
+                          do (MkSimulatedOp qsn unew vsn csn) # (q :: lvOut)
+            No prfNo => (MkSimulatedOp qsn usn vsn csn) # (q :: lvOut)
 
 export
 applyControlAbsSimulated: {n : Nat} -> {i : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit))->      
@@ -406,8 +412,10 @@ applyControlledUSplitSim' q ust (MkSimulatedOp qsn usn vsn csn)=
   let (q, k) = qubitToNatPair q in
     let vn = findInLinQ q vsn in
       let (MkSimulatedOp dummyqs un vn dummyc) # (lvLeft # lvRight)= runUStateT (MkSimulatedOp (neutralIdPow n) (IdGate {n = n}) vn n) ust in
-        let unew = apply (controlled un) usn (k :: (toVectN vn)) in
-          (MkSimulatedOp qsn unew vsn csn) # ((q :: lvLeft) # lvRight)
+         case decInj (S n) (k :: (toVectN vn)) of 
+            Yes prfYes => let unew = apply (controlled un) usn (k :: (toVectN vn)) {prf = prfYes} in
+                          do (MkSimulatedOp qsn unew vsn csn) # ((q :: lvLeft) # lvRight)
+            No prfNo => (MkSimulatedOp qsn usn vsn csn) # ((q :: lvLeft) # lvRight)
 
 ||| Implementation of abstract controlled split application     
 applyControlledSimulatedSplit: {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LPair (LVect i Qubit) (LVect j Qubit)))
@@ -467,8 +475,10 @@ applyControlledUnitaryOwn' : {n : Nat} -> {i : Nat} -> (1 _ : SimulatedOp i) -> 
 applyControlledUnitaryOwn' {n} {i} (MkSimulatedOp vacuousQS ui vi vacuousC) q (MkSimulatedOp qs un vn counter) =
   let (q, k) = qubitToNatPair q in
     let vin = toVectN vi in
-      let unew = apply (controlled ui) un (k :: (vin)) in
-        do ((MkSimulatedOp qs unew vn counter) # (q :: (toLVectQ vin)))
+      case decInj n (k :: (vin)) of 
+            Yes prfYes => let unew = UnitaryLinear.apply (controlled ui) un (k :: (vin)) {prf = prfYes} in
+                          do ((MkSimulatedOp qs unew vn counter) # (q :: (toLVectQ vin)))
+            No prfNo => (MkSimulatedOp qs un vn counter) # ((q :: (toLVectQ vin)))
 
 ||| Implementation of 
 export
