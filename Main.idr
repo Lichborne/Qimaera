@@ -108,7 +108,7 @@ qftAbsTestIo = let
   in
     do
       d <- draw un
-      eo <- exportForQVis "qftAbs.py" un
+      eo <- exportToQiskit "qftAbs.py" un
       pure () 
 {-}
 qftTest : (m: Nat) -> (Unitary m)
@@ -149,7 +149,7 @@ adderTestIo : IO ()
 adderTestIo = let (uni) = adderTest in
     do
       d <- draw uni
-      eo <- exportForQVis "adderNew.py" uni
+      eo <- exportToQiskit "adderNew.py" uni
       pure ()
      
 {-}
