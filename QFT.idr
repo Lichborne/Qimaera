@@ -121,6 +121,19 @@ qftQInv i n qs = applyUST {t=t} (qftUInv {t=t} {i = i} {n = n} (qs))
 
 ---------------------- TESTS ------------------------
 
+||| Run with 3 qubits with SimulatedOp(any more takes too long on a normal computer)
+runQFT3 : UnitaryOp t => QuantumOp t => IO (Vect 3 Bool)
+runQFT3 = runQ {t=t} (do
+    qs <- newQubits 3
+    qfts <- applyUST (qftU (qs))
+    measureAll qfts)
+
+public export
+||| Test with 3 qubits with SimulatedOp(any more takes too long on a normal computer) 
+testQFT3 : IO (Vect 3 Bool)
+testQFT3 = runQFT3 { t = SimulatedOp}
+
+
 public export
 ||| Run with 3 qubits with SimulatedOp(any more takes too long on a normal computer)
 runQFTAbs3 : UnitaryOp t => QuantumOp t => IO (Vect 3 Bool)
