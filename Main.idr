@@ -254,7 +254,7 @@ main = do
   --abs <-qftAbsTestIo
   --normie <- qftTestIo
   normie <- qftAbsTestIo
-  modular <- modularTestIo
+  --modular <- modularTestIo
   --qftabs <- testQFTAbs12
   pure ()
 
