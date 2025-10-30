@@ -6,11 +6,11 @@ import Decidable.Equality
 import Injection
 import QuantumOp
 import LinearTypes
-import UnitaryOp
+import SimulatedOp
 import UStateT
 import QStateT
 import UnitaryLinear
-import Qubit
+
 import QFT
 import Lemmas
 --import NatRules

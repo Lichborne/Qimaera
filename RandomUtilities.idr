@@ -16,6 +16,7 @@ import System
 import Data.Linear
 import Lemmas
 
+
 ||| Generate a vector of random doubles
 export
 randomVect : (n : Nat) -> IO (Vect n Double)
@@ -26,19 +27,19 @@ randomVect (S k)  = do
   pure (r :: v)
 
 
-
+{-
 ------------------------------------------------------------------------------
 ---------------------------------------------------------------------------
 public export
 data AllSmallerQ : (v: Vect n Qubit) -> (m:Qubit) -> Type where
     ASQNil  : AllSmallerQ [] m 
     ASQSucc :  LTq x m -> (soFarSmaller: AllSmallerQ xs m)-> AllSmallerQ (x :: xs) m
-{-}
+
 export
 getPrfSmaller : AllSmallerQ v m -> LTq (head v) m
 getPrfSmaller ASQNil impossible
 getPrfSmaller (ASQSucc prf sfs) = prf
--}
+
 |||Are all the elements in a vector smaller than a given Qubit?
 public export 
 allSmallerQ : Vect n Qubit -> Qubit -> Type
@@ -47,7 +48,7 @@ allSmallerQ v m = AllSmallerQ v m
 export
 ifAllSmallThenSubSmall : AllSmallerQ (x::xs) m -> AllSmallerQ xs m
 ifAllSmallThenSubSmall (ASQSucc a b) = b
-{-}
+
 export
 plusLTq : {a,b:Qubit} -> (c:Qubit) -> LTq a b -> LTq a (b+c)
 plusLTq q prf = rewrite plusZeroRightNeutral b in prf 
@@ -58,7 +59,7 @@ ifAllSmallThenPlusSmall : {v: Vect k Qubit} -> {m: Qubit} -> (n:Qubit) -> AllSma
 ifAllSmallThenPlusSmall any ASQNil = ASQNil
 ifAllSmallThenPlusSmall Z prf = rewrite plusZeroRightNeutral m in prf 
 ifAllSmallThenPlusSmall {v = (x::xs)} {m} (S n) (ASQSucc (lt) prev) =  ASQSucc (plusLTq {a = x} {b = m} (S n) lt) (ifAllSmallThenPlusSmall (S n) prev)
--}
+
 
 ifAllSmallS : {v: Vect k Qubit} -> {m: Qubit} -> {n : Qubit} -> LTq m n -> AllSmallerQ v m -> AllSmallerQ v n 
 ifAllSmallS prf ASQNil = ASQNil
@@ -330,10 +331,7 @@ decInjQHint {m} {v} = case eitherIsInjectiveQOrNot {m = m} {v = v} of
     Right prfNo => No prfNo 
 
 
-{-}
-makeUnique : Vect n Qubit -> Vect k Qubit
-makeUnique
--}
+
 zeroIsInj : (new: Qubit) -> (lv : Vect Z Qubit) -> IsInjectiveQ new lv
 zeroIsInj q [] = IsInjectiveQSucc AllDiffQNil ASQNil
 
@@ -380,3 +378,4 @@ newUVect (S (S j)) =
       newalldiff = AllDiffQSucc isdiffsofarnew (prevalldiff)
       succprf = (IsInjectiveQSucc newalldiff newallsmall) 
       in Cons (MkQubit (S j)) ((MkQubit j) :: (MkQubit p) ::ps) succprf
+-}

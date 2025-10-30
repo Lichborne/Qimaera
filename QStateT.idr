@@ -4,7 +4,7 @@ import Control.Monad.State
 import LinearTypes
 import Control.Linear.LIO
 import Lemmas
-import Qubit
+
 
 %default total
 

@@ -7,13 +7,13 @@ import Injection
 import Lemmas
 import QuantumOp
 import LinearTypes
-import UnitaryOp
+import SimulatedOp
 import UStateT
 import QStateT
 import UnitaryLinear
-import UnitaryOpTracked
+import SimulatedOpTracked
 import QuantumOpTracked
-import Qubit
+
 
 %default total
 

@@ -4,8 +4,7 @@ import Data.Vect
 import QStateT
 import QuantumOp
 import LinearTypes
-import UnitaryOp
-import Qubit
+import SimulatedOp
 import Lemmas
 
 ||| A fair coin toss (as an IO effect) via quantum resources.

@@ -7,7 +7,7 @@ import Decidable.Equality
 import System.File
 import Injection
 import Matrix
-import UnitaryOp
+import QuantumOp
 import Complex
 import Lemmas
 import UnitaryNoPrf
@@ -20,7 +20,8 @@ import Data.Maybe
 import QStateT
 import Data.Linear.Notation
 import Data.Linear.Interface
-import Qubit
+import SimulatedOp
+
 
 
 public export
@@ -188,7 +189,8 @@ export
 applyParallelSimulatedNoPrf: {n : Nat} -> {i : Nat} -> {j : Nat} -> (1_ : UStateT (UnitaryNoPrf n) (UnitaryNoPrf n) ((LVect i Qubit)))
                         -> (1_ : UStateT (UnitaryNoPrf n) (UnitaryNoPrf n) ((LVect j Qubit))) -> UStateT (UnitaryNoPrf n) (UnitaryNoPrf n) (LVect (i + j) Qubit)
 applyParallelSimulatedNoPrf ust1 ust2 = MkUST (applyParallelSimulatedNoPrf' ust1 ust2)
-  
+
+
 export
 UnitaryOp UnitaryNoPrf where
   applyUnitary = applyUnitaryNoPrfSimulated
@@ -196,12 +198,13 @@ UnitaryOp UnitaryNoPrf where
   applyUnitaryAbs = applyUnitaryNoPrfAbsSimulated
   applyControlledAbs = applyControlAbsSimulated
   adjointUST = adjointUSTNoPrf'
-  applyPrallel= applyParallelSimulatedNoPrf
-  --applyControlWithSplitLVects = applyControlledSimulatedSplit
-  --applyWithSplitLVects = applyUnitaryNoPrfAbsSplitSimulated
-  --reCombineAbs = reCombineAbsUnitaryNoPrfSimulated
+  applyParallel = applyParallelSimulatedNoPrf
+  applyControlWithSplitLVects = applyControlledSimulatedSplit
+  applyWithSplitLVects = applyUnitaryNoPrfAbsSplitSimulated
+  reCombineAbs = reCombineAbsUnitaryNoPrfSimulated
   run          = runUnitaryNoPrfSim 
-  --runSplit = runSplitUnitaryNoPrfSim
+  runSplit = runSplitUnitaryNoPrfSim
   applyH = applyHSim
   applyP = applyPSim
   applyCNOT = applyCNOTSim
+  exportSelf = exportSelf'

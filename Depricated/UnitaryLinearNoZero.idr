@@ -5,7 +5,7 @@ import Data.Nat
 import System.File
 import Injection
 import Lemmas
-import Qubit
+
 
 infixr 9 .
 infixr 10 #

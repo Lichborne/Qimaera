@@ -7,11 +7,11 @@ import Injection
 import Lemmas
 import QuantumOp
 import LinearTypes
-import UnitaryOp
+--import UnitaryOp
 import UStateT
 import QStateT
 import UnitaryLinear
-import Qubit
+
 
 %default total
 
@@ -28,7 +28,7 @@ patternRec 1 m unitary baseCaseUnitary [w] = do
           pure $ wh
 patternRec (S k) m unitary baseCaseUnitary (q::qs) = do
           recwires <- patternRec k m unitary baseCaseUnitary (qs)
-          app <- UnitaryOp.applyUnitary {n = m} {i = (S k)} (q::recwires) (unitary (S k))
+          app <- applyUnitary {n = m} {i = (S k)} (q::recwires) (unitary (S k))
           pure (app) 
 
 ||| Outer pattern for recursively building large unitaries from a base unitary and a function for getting a parametrized unitary from some k (like qftU)

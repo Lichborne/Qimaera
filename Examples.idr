@@ -12,8 +12,8 @@ import System.Random
 import Injection
 import Complex
 import QuantumOp
-import UnitaryOp
-import Qubit
+import SimulatedOp
+
 import Lemmas
 
 

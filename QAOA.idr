@@ -13,10 +13,8 @@ import Complex
 import System.Random
 import QuantumOp
 import RandomUtilities
-import UnitaryOp
 import UStateT
-import Qubit
-import BinarySimulatedOpAlt
+import BinarySimulatedOp
 
 %default total
 
@@ -64,8 +62,8 @@ costUnitaryOp' _ [] lvect = pure lvect
 costUnitaryOp' {i = i} {n = (S k)} {m = m} {prf} g (False :: bs) lvect = 
   costUnitaryOp' {prf = lemmaLTESuccLTE (S k) m prf} g bs lvect -- idris always found this until now...
 costUnitaryOp' {i = i} {n = (S k)} {m = m} {prf} g (True :: bs) qs = do
-      first <- UnitaryOp.applyUnitary qs (P g (S k) (CX (S k) m))
-      second <- UnitaryOp.applyUnitary first (CX (S k) m)
+      first <- applyUnitary qs (P g (S k) (CX (S k) m))
+      second <- applyUnitary first (CX (S k) m)
       rest <- costUnitaryOp' {prf = lemmaLTESuccLTE (S k) m prf} g bs second 
       pure rest 
 {-
@@ -115,7 +113,7 @@ QAOA_UnitaryOp' [] [] _ qs = pure qs
 QAOA_UnitaryOp' _ _ Empty any = pure any
 QAOA_UnitaryOp' {i = i} {n = S k} (beta :: betas) (gamma :: gammas) g (q::qs) = do 
   costUOp <- costUnitaryOp {i = i} {n = S k} {m = (S k)} g gamma (q::qs)
-  mixed <- UnitaryOp.applyUnitary costUOp (mixingUnitary (S k) beta)
+  mixed <- applyUnitary costUOp (mixingUnitary (S k) beta)
   fin <- QAOA_UnitaryOp' betas gammas g mixed
   pure fin
 
@@ -140,7 +138,7 @@ QAOA_UnitaryOp : UnitaryOp t => {i:Nat} -> {n : Nat} ->
   (1 _ : LVect n Qubit) ->
   UStateT (t i) (t i) (LVect n Qubit)
 QAOA_UnitaryOp betas gammas graph qs = do
-  tensored <- UnitaryOp.applyUnitary qs (tensorn n HGate)
+  tensored <- applyUnitary qs (tensorn n HGate)
   qaoaUni <- QAOA_UnitaryOp' betas gammas graph tensored
   pure qaoaUni
 
@@ -221,9 +219,10 @@ QAOA k p graph = do
   let (cut,size) = bestCut graph cuts
   pure cut
 
-
+{-}
 ||| Small test
 testQAOA : IO (Cut 3)
 testQAOA = (do
   bs <- QAOA { t = BinarySimulatedOp } 2 2 (AddVertex (AddVertex (AddVertex (Empty) []) [True]) [True,False])
   pure bs)
+-}

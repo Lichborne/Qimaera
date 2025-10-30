@@ -12,10 +12,10 @@ import QStateT
 import Control.Linear.LIO
 import LinearTypes
 import UnitaryLinear
-import UnitaryOp
+--import UnitaryOp
 import UStateT
 import Control.Linear.LIO
-import Qubit
+
 
 
 idUp :  {m:Nat} -> (1 _ : Unitary m) -> (q : Nat) -> Unitary (m + q)
@@ -30,9 +30,9 @@ newQubitsUST p = MkUST (newQubits' p) where
     let (qubits # v') = newQubitsPointersNoCount q (mkQubitV 0 m)
     in (idUp un q # qubits)
 
-{-}
-    public export
-interface UnitaryRun (0 t : Nat -> Type) where
+
+public export
+interface RunUnitaryOp (0 t : Nat -> Type) where
 
   ||| Prepare 'p' new qubits in state |00...0>
   newQubits : (p : Nat) -> UStateT (t n) (t (n+p)) (LVect p Qubit)

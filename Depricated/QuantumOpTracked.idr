@@ -13,9 +13,9 @@ import QStateT
 import Control.Linear.LIO
 import LinearTypes
 import Unitary
-import UnitaryOpTracked
+import SimulatedOpTracked
 import UStateT
-import Qubit
+
 
 ||| The Qubit type is used to identify individual qubits. The Nat argument is
 ||| used to uniquely identify a qubit. This type does *not* carry any quantum

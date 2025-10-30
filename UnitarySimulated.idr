@@ -7,7 +7,7 @@ import Decidable.Equality
 import System.File
 import Injection
 import Matrix
-import UnitaryOp
+import SimulatedOp
 import Complex
 import Lemmas
 import UnitaryLinear
@@ -19,23 +19,30 @@ import Data.Maybe
 import QStateT
 import Data.Linear.Notation
 import Data.Linear.Interface
-import Qubit
+import QuantumOp
+
 
 
 public export
 runUnitarySim : {i:Nat} -> (1_: Unitary n) -> (1 _ : UStateT (Unitary n) (Unitary n) (LVect i Qubit) ) -> LPair (Unitary n) (LVect i Qubit)
-runUnitarySim {i = i} simop ust = runUStateT simop ust
+runUnitarySim {i = i} un ust = runUStateT un ust
 
 public export
 runSplitUnitarySim : {i:Nat} -> {j:Nat} -> (1_: Unitary n) -> (1 _ : UStateT (Unitary n) (Unitary n) (LPair (LVect i Qubit) (LVect j Qubit)))  
                 -> LPair (Unitary n) (LPair (LVect i Qubit) (LVect j Qubit))
-runSplitUnitarySim {i = i} simop ust = runUStateT simop ust
+runSplitUnitarySim {i = i} un ust = runUStateT un ust
 
+public export
+exportUnitarySelf : {i:Nat} -> (1_: Unitary n) -> (1 _ : UStateT (Unitary n) (Unitary n) (LVect i Qubit) ) -> (Unitary n) 
+exportUnitarySelf un ust = let op # lvect = runUStateT un ust in
+                                      let () = discardq lvect in
+                                        op
 ||| Auxiliary function for applying a circuit to some qubits
 private
 applyUnitary' : {n : Nat} -> {i : Nat} -> --let lvOut # vect = distributeDupedLVectVect lvIn in ( (apply ui u vect) ) # lvOut
                 (1 _ : LVect i Qubit) -> Unitary i -> (1 _ : Unitary n) -> (LPair (Unitary n) (LVect i Qubit))
-applyUnitary' lvIn ui (u) = let lvOut # vect = distributeDupedLVectVect lvIn in ( (apply ui u vect) ) # lvOut
+applyUnitary' lvIn ui (u) = let lvOut # vect = distributeDupedLVectVect lvIn in 
+                          let un # _ = ( (applyOrErrorIO ui u vect) ) in un # lvOut
 
 export
 applyUnitarySimulated : {n : Nat} -> {i : Nat} ->
@@ -45,7 +52,8 @@ applyUnitarySimulated lvect ui = MkUST (applyUnitary' lvect (ui))
 private
 applyUnitaryOwn' : {n : Nat} -> {i : Nat} -> --let lvOut # vect = distributeDupedLVectVect lvIn in ( (apply ui u vect) ) # lvOut
                 (1 _ : LVect i Qubit) -> (1_ : Unitary i) -> (1 _ : Unitary n) -> (LPair (Unitary n) (LVect i Qubit))
-applyUnitaryOwn' lvIn ui (u) = let lvOut # vect = distributeDupedLVectVect lvIn in ( (apply ui u vect) ) # lvOut
+applyUnitaryOwn' lvIn ui (u) = let lvOut # vect = distributeDupedLVectVect lvIn in 
+                                let un # _ = ( (applyOrErrorIO ui u vect) ) in un # lvOut
 
 export
 applyUnitaryOwnSimulated : {n : Nat} -> {i : Nat} ->
@@ -65,8 +73,8 @@ applyControlSimulated' {n} q ust usn =
   let (q, k) = qubitToNatPair q in
     let vn = findInLinQ q (makeNeutralVect (S n)) in
       let un # lvOut = runUStateT (IdGate {n = n}) ust in
-        let unew = UnitaryLinear.apply (controlled un) usn (k :: toVectN vn) in
-            unew # (q :: lvOut)
+        let unew # _ = ( (applyOrErrorIO (controlled un) usn (k :: toVectN vn)) ) in unew # (q :: lvOut)
+        
 
 export
 applyControlAbsSimulated: {n : Nat} -> {i : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (Unitary n) (Unitary n) (LVect i Qubit))->      
@@ -134,6 +142,21 @@ reCombineAbsUnitarySimulated : {n : Nat} -> {i : Nat} -> {j:Nat} ->
   (1_ : (UStateT (Unitary n) (Unitary n) (LPair (LVect i Qubit) (LVect j Qubit)) ))-> UStateT (Unitary n) (Unitary n) (LVect (i+j) Qubit)
 reCombineAbsUnitarySimulated q = MkUST (reCombineAbs' q)
 
+applyParallelSimulated': {n : Nat} -> {i : Nat} -> (1_ : UStateT (Unitary n) (Unitary n) (LVect i Qubit))     
+                   -> (1_ : UStateT (Unitary n) (Unitary n) (LVect j Qubit))   
+                   -> (1 _ : Unitary n) -> LPair (Unitary n) (LVect (i + j) Qubit)
+applyParallelSimulated' ust1 ust2 un = 
+  let (unew1# lvecti) = runUStateT IdGate ust1 in -- there are multiple choices for what order to do what in, this is one correct one
+    let (unew2 # lvectj) = runUStateT IdGate ust2 in
+        let unewest = compose unew1 un in
+          let uOut = compose unew2 unewest in
+            do (uOut # (lvecti ++ lvectj))
+
+applyParallelSimulated: {n : Nat} -> {i : Nat} -> {j : Nat} -> (1_ : UStateT (Unitary n) (Unitary n) ((LVect i Qubit)))
+                        -> (1_ : UStateT (Unitary n) (Unitary n) ((LVect j Qubit))) -> UStateT (Unitary n) (Unitary n) (LVect (i + j) Qubit)
+applyParallelSimulated ust1 ust2 = MkUST (applyParallelSimulated' ust1 ust2)
+
+
 export
 applyHSim : {n : Nat} -> (1 _ : Qubit) -> UStateT (Unitary n) (Unitary n) (LVect 1 Qubit)
 applyHSim q = do
@@ -163,7 +186,7 @@ invert ust un =
  
 export
 adjointUST' : (1_ : UStateT (Unitary n) (Unitary n) (LVect i Qubit)) -> (UStateT (Unitary n) (Unitary n) (LVect i Qubit))
-adjointUST' ust = MkUST (invert ust)
+adjointUST' ust = MkUST (invert ust)  
   
 export
 UnitaryOp Unitary where
@@ -172,11 +195,13 @@ UnitaryOp Unitary where
   applyUnitaryAbs = applyUnitaryAbsSimulated
   applyControlledAbs = applyControlAbsSimulated
   adjointUST = adjointUST'
-  --applyControlWithSplitLVects = applyControlledSimulatedSplit
-  --applyWithSplitLVects = applyWithSplitLVectsSimulated
-  --reCombineAbs = reCombineAbsUnitarySimulated
+  applyParallel = applyParallelSimulated
+  applyControlWithSplitLVects = applyControlledSimulatedSplit
+  applyWithSplitLVects = applyWithSplitLVectsSimulated
+  reCombineAbs = reCombineAbsUnitarySimulated
   run          = runUnitarySim 
-  --runSplit = runSplitUnitarySim
+  runSplit = runSplitUnitarySim
   applyH = applyHSim
   applyP = applyPSim
   applyCNOT = applyCNOTSim
+  exportSelf = exportUnitarySelf

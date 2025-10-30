@@ -4,7 +4,7 @@ import Data.Vect
 import Data.Nat
 import Complex
 import Lemmas
-import Qubit
+
 
 %default total
 
@@ -191,13 +191,6 @@ toDensityRep : { n : Nat } -> Matrix (power 2 n) 1 -> Matrix (power 2 n) (power 
 toDensityRep m = matrixMult m (transposeMatrix m)
 
 --subMatN : (k : Nat) -> Matrix (power 2 n) (power 2 n) -> Matrix 2
-
-export
-tensorUp : Matrix (power 2 i) 1 -> (n : Nat) -> (Vect i Qubit) -> Matrix (power 2 n) (power 2 n)
-tensorUp _ 0 _ = [[1]]
-tensorUp _ n [] = matrixId (power 2 n)-- should not happen
-tensorUp m (S n) (x::xs) = believe_me ()
-  
 
 export
 tensorCnotAux : (n : Nat) -> (control : Nat) -> (target : Nat) -> Matrix (power 2 n) (power 2 n)

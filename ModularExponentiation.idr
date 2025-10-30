@@ -6,11 +6,11 @@ import Decidable.Equality
 import Injection
 import QuantumOp
 import LinearTypes
-import UnitaryOp
+--import UnitaryOp
 import UStateT
 import QStateT
 import UnitaryLinear
-import Qubit
+
 import QFT
 import Lemmas
 --import NatRules
@@ -357,10 +357,10 @@ natToUnitaryI _ [] = pure []
 natToUnitaryI Z (q::qs) = pure (q::qs)
 natToUnitaryI {i = (S k)} (S n) (q::qs) = binVectToUnitaryI (natToBinIVect (S k) (S n)) (q::qs)
 
-partial
+partial export
 ||| modular exponentiation using QuantumOp and UnitaryOp
-modularExponentiationOp: QuantumOp t => UnitaryOp t => {tn : Nat} 
-                                                    -> (1_ : LVect 1 Qubit) -- the control, comes from a different computation, 
+modularExponentiationOp: QuantumOp t => UnitaryOp t => 
+                                                     (1_ : LVect 1 Qubit) -- the control, comes from a different computation, 
                                                     -> (i:Nat) -> (n:Nat) -> (x : Nat) -> (a:Nat) -> (bigN: Nat)
                                                     -> QStateT (t 1) (t (2 + i + i + i + i + (S i))) ((LVect (3 + i + i + i + i + i) Qubit))
 modularExponentiationOp {t = t} c i n x a bigN = let 

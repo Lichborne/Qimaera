@@ -15,7 +15,7 @@ import Data.String
 import Matrix
 import Data.Linear.Notation
 import Data.Linear.Interface
-import Qubit
+
 import Complex
 
 

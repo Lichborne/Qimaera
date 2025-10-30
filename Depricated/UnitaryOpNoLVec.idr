@@ -18,7 +18,7 @@ import Data.Maybe
 import QStateT
 import Data.Linear.Notation
 import Data.Linear.Interface
-import Qubit
+
 
 
 

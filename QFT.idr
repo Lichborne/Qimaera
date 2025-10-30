@@ -6,14 +6,14 @@ import Decidable.Equality
 import Injection
 import QuantumOp
 import LinearTypes
-import UnitaryOp
+import SimulatedOp
 import UStateT
 import QStateT
 import UnitaryLinear
-import Qubit
 import Lemmas
-import BinarySimulatedOpAlt
---import UnitaryOpTracked
+import BinarySimulatedOp
+import UnitarySimulated
+----import UnitaryOpTracked
 --import QuantumOpTracked
 
 %default total
@@ -129,6 +129,7 @@ runQFTAbs3 = runQ {t=t} (do
     qfts <- qftQAbs {t=t} 3 3 qs 
     measureAll qfts
     )
+
 public export
 ||| Test with 3 qubits with SimulatedOp(any more takes too long on a normal computer) 
 testQFTAbs3 : IO (Vect 3 Bool)
@@ -139,12 +140,12 @@ testQFTAbs3 = (do
 public export 
 ||| Run with 12 qubits with BinarySimulatedOp
 runQFTAbs12 : UnitaryOp t => QuantumOp t => IO (Vect 12 Bool)
-runQFTAbs12 = runQ {t=t} (do
+runQFTAbs12 = runQ {t = t} (do
     qs <- newQubits 12 {t = t}
-    qfts <- qftQAbs {t=t} 12 12 qs 
+    qfts <- qftQAbs {t = t} 12 12 qs 
     measureAll qfts)
 
-public export
+public export total
 ||| Test with 12 qubits with BinarySimulatedOp
 testQFTAbs12 : IO (Vect 12 Bool)
 testQFTAbs12 = (do

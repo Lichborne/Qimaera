@@ -16,7 +16,7 @@ import LinearTypes
 import Data.String
 import Data.Maybe
 import QStateT
-import Qubit
+
 
 
 ||| The UnitaryOp interface is used to abstract over the representation of a

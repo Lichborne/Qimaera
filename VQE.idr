@@ -12,11 +12,11 @@ import Complex
 import System.Random
 import QuantumOp
 import RandomUtilities
-import Qubit
+
 import Lemmas
-import UnitaryOp
+--import UnitaryOp
 import UStateT
-import BinarySimulatedOpAlt
+import BinarySimulatedOp
 --import UnitarySimulated
 --import UnitaryNoPrf
 
@@ -162,7 +162,7 @@ encodingUnitaryOp: UnitaryOp t => {n : Nat} -> {i : Nat} -> (h : PauliBasis i) -
 encodingUnitaryOp {n = n} [] [] impossible
 encodingUnitaryOp {i = Z} {n = n} [] (last::ls) = pure $ (last::ls)
 encodingUnitaryOp {i = S k} {n = n} (PauliI :: xs) (q::qs) = do --- for some reason, idris needs the alst argument to also be in this form
-        (qs) # [drop] <- UnitaryOp.splitLastUtil (q::qs) 
+        (qs) # [drop] <- splitLastUtil  (q::qs) 
         (q::qs) <- (encodingUnitaryOp xs (qs)) 
         combined <- reCombineSingleR (q::qs) drop
         pure $ combined 
@@ -405,7 +405,7 @@ VQEOg n h nSamples k depth = do
   pure $ foldl min (head energies) energies
 
 
-
+{-}
 export
 
 testVQE : IO Double
@@ -413,4 +413,4 @@ testVQE = do
   putStrLn "Test VQE"
   let hamiltonian = [(2, [PauliX, PauliY]),(3,[PauliZ, PauliI])]
   VQEOg {t = BinarySimulatedOp} 2 hamiltonian 1 2 1
-
+-}

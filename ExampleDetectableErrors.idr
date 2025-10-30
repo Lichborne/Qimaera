@@ -11,10 +11,10 @@ import System.Random
 import Injection
 import Complex
 import QuantumOp
-import UnitaryOp
+import SimulatedOp
 import Examples
 import UStateT
-import Qubit
+
 
 --%search_timeout 1 
 

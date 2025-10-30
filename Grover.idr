@@ -12,8 +12,8 @@ import QStateT
 import AlterningBitsOracle
 import QuantumOp
 import UStateT
-import UnitaryOp
-import Qubit
+--import UnitaryOp
+
 
 %default total
 
@@ -92,10 +92,10 @@ groverIterationOp : UnitaryOp t => (n : Nat) -> {p : Nat} -> (oracle : Unitary (
 groverIterationOp n oracle qs= 
   let h = tensorn n (H 0 IdGate) 
   in do
-    oracled <- UnitaryOp.applyUnitary (qs) (oracle) -- {n = n+p} {i = n+p} 
-    tensored <- UnitaryOp.applyUnitary (oracled) (tensor h IdGate) --{n = n+p} {i = n+p} 
-    amplified <- UnitaryOp.applyUnitary (tensored) (tensor (amplification n) IdGate) --{n = n+p} {i = n+p} 
-    fin <- UnitaryOp.applyUnitary (amplified) (tensor h IdGate) --{n = n+p} {i = n+p} 
+    oracled <- applyUnitary (qs) (oracle) -- {n = n+p} {i = n+p} 
+    tensored <- applyUnitary (oracled) (tensor h IdGate) --{n = n+p} {i = n+p} 
+    amplified <- applyUnitary (tensored) (tensor (amplification n) IdGate) --{n = n+p} {i = n+p} 
+    fin <- applyUnitary (amplified) (tensor h IdGate) --{n = n+p} {i = n+p} 
     pure fin
 
 public export total
@@ -111,9 +111,9 @@ groverOp' : UnitaryOp t => (n : Nat) -> {p : Nat} -> (oracle : Unitary (n + p)) 
 groverOp' n oracle nbIter qs = 
   let h = tensor (tensorn n (H 0 IdGate)) (xhAncilla p)
   in do
-    first <- UnitaryOp.applyUnitary (qs) (h) -- {n = n+p} {i = n+p}
+    first <- applyUnitary (qs) (h) -- {n = n+p} {i = n+p}
     grvr <- repeatGroverIterationOp nbIter n oracle first
-    fin <- UnitaryOp.applyUnitary (grvr) (tensor IdGate (hxAncilla p)) -- {n = n+p} {i = n+p}
+    fin <- applyUnitary (grvr) (tensor IdGate (hxAncilla p)) -- {n = n+p} {i = n+p}
     pure fin
 
 groverOP : UnitaryOp t => QuantumOp t => (n : Nat) -> {p : Nat} -> (oracle : Unitary (n + p)) -> (nbIter : Nat) -> IO (Vect n Bool)

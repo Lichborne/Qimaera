@@ -6,10 +6,8 @@ import QuantumOp
 import LinearTypes
 import UnitaryLinear
 import Data.List
-import UnitaryOp
 import UStateT
-import Qubit
-import BinarySimulatedOpAlt
+import BinarySimulatedOp
 
 ||| Problem: Given an input qubit |q> and a single-qubit unitary operation U,
 |||          return the state U|q>. The "Repeat Until Success" approach solves

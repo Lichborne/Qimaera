@@ -5,13 +5,12 @@ import Data.Vect
 import Data.List
 import LinearTypes
 import Control.Linear.LIO
-import Qubit
 import Lemmas
 import UnitaryLinear
 import UnitaryNoPrf
 import QStateT
 import UStateT
-import UnitaryOp
+--import UnitaryOp
 import UnitarySimulated
 import System.Random
 import Injection
@@ -19,7 +18,6 @@ import QFT
 import Grover
 import VQE
 import Complex
-import QuantumOp
 import CoinToss
 import QAOA
 import Graph
@@ -29,8 +27,9 @@ import Matrix
 import UnitarySimulated
 import UnitaryNoPrfSim
 import ModularExponentiation
-import BinarySimulatedOpAlt
-
+import BinarySimulatedOp
+import SimulatedOp
+import QuantumOp
 
 
 -- %default total
@@ -82,7 +81,9 @@ qftRec : (n : Nat) -> Unitary n
 qftRec 0 = IdGate
 qftRec 1 = HGate
 qftRec (S (S k)) =   let t1 = (qftRec (S k)) # IdGate
-  in rewrite sym $ lemmaplusOneRight k in apply (Main.cRm (S (S k))) t1 [S k, 0] 
+  in rewrite sym $ lemmaplusOneRight k in 
+    let u # _ = applyOrErrorIO (Main.cRm (S (S k))) t1 [S k, 0] in
+      u
 
 ||| QFT unitary circuit for n qubits
 |||
@@ -95,25 +96,24 @@ qft (S k) =
       h = (IdGate {n = 1}) # (qft k)
   in h . g
 
-qftAbsTest : LPair (Unitary 4) (LVect 4 Qubit)
-qftAbsTest = let 
-    a = mkQubitList 0 4
-    in runUnitarySim (IdGate {n  = 4}) (do
-            out <- qftUAbs {i = 4} {n = 4} a
-            pure out)
+qftAbsTest : (Unitary 4)
+qftAbsTest = runUnitaryOp (do
+  qs <- supplyQubits 4
+  out <- applyUStateT (qftUAbs {i = 4} {n = 4} qs)
+  pure out)
 
 qftAbsTestIo : IO ()
 qftAbsTestIo = let
-  un # lvect = qftAbsTest
+  un = qftAbsTest
   in
     do
       d <- draw un
       eo <- exportForQVis "qftAbs.py" un
       pure () 
-
+{-}
 qftTest : (m: Nat) -> (Unitary m)
 qftTest m = let 
-    a = mkQubitList 0 m
+    a # _ = newQubitsPointersNoCount m []
     in exportSelf (IdGate {n  = m}) (qftU a)
             
 qftTestIo : IO ()
@@ -126,52 +126,19 @@ qftTestIo = let
       --eo <- exportToQiskit "ogqft.py" (qft 4)
       pure () 
     
-{-}
-qftAbsTest : LPair (SimulatedOp 4) (LVect 4 Qubit)
-qftAbsTest = let 
-    a = (MkQubit 0 :: MkQubit 1 :: MkQubit 2 :: [MkQubit 3])
-    in run' (MkSimulatedOp {n = 4} (neutralIdPow 4) IdGate a 4 ) (do
-            out <- qftUAbs {i = 4} {n = 4} (toLVectQQ a)
-            pure out)
+b: LVect 4 Qubit
+b = let a # av = newQubitsPointersNoCount 3 [] in
+    let b # _ = newQubitsPointersNoCount 4 av in b
+-}
+adderTest : (Unitary 7)
+adderTest = runUnitaryOp (do
+  a <- supplyQubits 3
+  b <- supplyQubits 4
+  out <- applyUStateT (inPlaceQFTAdder2 a b)
+  pure out)         
 
-qftAbsTestIo : IO ()
-qftAbsTestIo = let
-  (MkSimulatedOp qs un vect counter) # lvect = qftAbsTest
-  in
-    do
-      d <- draw un
-      eo <- exportToQiskit "qftAbs.py" un
-      pure () 
-
-qftTest : LPair (SimulatedOp 4) (LVect 4 Qubit)
-qftTest = let 
-    a = (MkQubit 0 :: MkQubit 1 :: MkQubit 2 :: [MkQubit 3])
-    in run' (MkSimulatedOp (neutralIdPow 4) IdGate a 4 {n=4}) (do
-            out <- qftU (toLVectQQ a)
-            pure out)
-            
-qftTestIo : IO ()
-qftTestIo = let
-  (MkSimulatedOp qs un vect counter) # lvect = qftTest
-  in
-    do
-      d <- draw un
-      eo <- exportToQiskit "qft.py" un
-      eo <- exportToQiskit "ogqft.py" (qft 4)
-      pure () 
-    -}
-
-adderTest : (Unitary 3)
-adderTest = let 
-        a = mkQubitList 0 3
-        b = mkQubitList 2 4
-        in 
-          exportSelf (IdGate {n=3}) (do
-            out <- (inPlaceQFTAdder2 a b)
-            pure out)         
-
-adderTestQ : QuantumOp t => IO (Vect 7 Bool)
-adderTestQ = runQ {t = SimulatedOp} (do
+adderTestQ : IO (Vect 7 Bool)
+adderTestQ = runQ {t = BinarySimulatedOp} (do
                a <- newQubits 3
                b <- newQubits 4 
                outapp <- applyUST (reCombineAbs $ inPlaceQFTAdder a b)
@@ -182,10 +149,10 @@ adderTestIo : IO ()
 adderTestIo = let (uni) = adderTest in
     do
       d <- draw uni
-      eo <- exportForQVis "adder.py" uni
+      eo <- exportForQVis "adderNew.py" uni
       pure ()
-      
-{-
+     
+{-}
 encodingTest : LPair (Unitary 5) (LVect (5) Qubit)
 encodingTest = let 
         p = [PauliX, PauliY, PauliZ, PauliI]
@@ -200,11 +167,11 @@ encodingTestU = let
         p = [PauliX, PauliY, PauliZ, PauliI]
         in 
         encodingUnitary p 
--}
+
 encodingTest : LPair (Unitary 3) (LVect (3) Qubit)
 encodingTest = let 
         p = [PauliZ, PauliI]
-        qs = stupidQubitList
+        qs # _ = newQubitsPointersNoCount 3 []
         in 
           runUnitarySim (IdGate {n=3}) (do
             out <- encodingUnitaryOp p qs
@@ -225,36 +192,34 @@ encodingTestIo = let
       d <- draw uni
       d2 <- draw encodingTestU
       pure () 
-
+-}
 
 
 ||| testing just the unitary part of modular exponentiation
-modularTest : LPair (UnitaryNoPrf 5) (LPair (LVect (3 + 3 + 3 + 3 + 3) Qubit) (LVect (3) Qubit))
-modularTest = let 
-        c = mkQubitList 0 1 --- recall that UnitaryOp can only ever get qubits from quantumOp, so we dont have to worry about whether the qubits will be distinct
-        ancilla = mkQubitList 1 1
-        ans = mkQubitList 2 3
-        xs = mkQubitList 5 3
-        asnmodinv = mkQubitList 8 3
-        bigNs = mkQubitList  11 3
-        nils = mkQubitList 14 4
-        in 
-          runSplitUnitaryNoPrfSim (IdGate {n=5}) (do
-            out <-  inPlaceModularExponentiation c ancilla (xs) (ans) (asnmodinv) (bigNs) (nils)
-            pure out)     
- {-}         
-modularTestIo : IO (UnitaryNoPrf 5)
+modularTest : (Unitary 18)
+modularTest = runUnitaryOp (do
+        c <- supplyQubits 1--- recall that UnitaryOp can only ever get qubits from quantumOp, so we dont have to worry about whether the qubits will be distinct
+        ancilla <- supplyQubits 1
+        ans <- supplyQubits 3
+        xs <- supplyQubits 3
+        asnmodinv <- supplyQubits 3
+        bigNs <- supplyQubits 3
+        nils <- supplyQubits 4
+        out <-  applyUStateTSplit (inPlaceModularExponentiation c ancilla (xs) (ans) (asnmodinv) (bigNs) (nils))
+        pure out)     
+          
+modularTestIo : IO (Unitary 18)
 modularTestIo = let
-  (uni) # lvect = modularTest
-  uni1 # uni2 = UnjitaryNoPrfSim.duplicateLinU
+  (uni) = modularTest
+  (uni1, uni2) = UnitarySimulated.duplicateLinU uni
   in
     do
       d <- draw uni
-      eo <- exportToQiskit "modular.py" uni1
-      pure () 
-    -}
+      eo <- exportToQiskit "modularNewest.py" uni1
+      pure uni1 
 
-public export
+
+partial public export
 main : IO ()
 main = do
 
@@ -284,12 +249,12 @@ main = do
   putStrLn "\nSmall test with Encoding in VQE"
   --cut <- testQAOA
   --putStrLn $ "result from QAOA : " ++ show cut
-  k <- encodingTestIo
+  --k <- encodingTestIo
   --ast <- adderTestIo
   --abs <-qftAbsTestIo
   --normie <- qftTestIo
-  --normie <- qftAbsTestIo
-  --modular <- modularTestIo
+  normie <- qftAbsTestIo
+  modular <- modularTestIo
   --qftabs <- testQFTAbs12
   pure ()
 
