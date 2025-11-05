@@ -7,7 +7,7 @@ import LinearTypes
 import Control.Linear.LIO
 import Lemmas
 import UnitaryLinear
-import UnitaryNoPrf
+--import UnitaryNoPrf
 import QStateT
 import UStateT
 --import UnitaryOp
@@ -25,7 +25,7 @@ import Examples
 import RUS
 import Matrix
 import UnitarySimulated
-import UnitaryNoPrfSim
+--import UnitaryNoPrfSim
 import ModularExponentiation
 import BinarySimulatedOp
 import SimulatedOp
@@ -96,20 +96,38 @@ qft (S k) =
       h = (IdGate {n = 1}) # (qft k)
   in h . g
 
-qftAbsTest : (Unitary 4)
-qftAbsTest = runUnitaryOp (do
+qftTest : (Unitary 4)
+qftTest = runUnitaryOp (do
   qs <- supplyQubits 4
-  out <- applyUStateT (qftUAbs {i = 4} {n = 4} qs)
+  out <- applyUStateT (qftU {i = 4} {n = 4} qs)
   pure out)
 
 qftAbsTestIo : IO ()
 qftAbsTestIo = let
-  un = qftAbsTest
+  un = runQFT3U
   in
     do
       d <- draw un
-      eo <- exportToQiskit "qftAbs.py" un
+      eo <- exportToQiskit "qftTest.py" un
       pure () 
+
+
+qftControlTest : (Unitary 4)
+qftControlTest = runUnitaryOp (do
+  [c] <- supplyQubits 1
+  [q1,q2,q3]<- supplyQubits 3
+  out <- applyUStateT (applyUnitaryAbs (applyControlledAbs q1 (qftUAbs {i = 3} {n = 3} [c,q2,q3])))
+  pure out)
+
+qftControlTestIo : IO ()
+qftControlTestIo = let
+  un = qftControlTest
+  in
+    do
+      d <- draw un
+      eo <- exportToQiskit "qftControlTest.py" un
+      pure () 
+
 {-}
 qftTest : (m: Nat) -> (Unitary m)
 qftTest m = let 
@@ -194,7 +212,71 @@ encodingTestIo = let
       pure () 
 -}
 
+inPlaceSplitTest : UnitaryOp t => {i: Nat} -> {n : Nat} 
+                                -> (1 controls : LVect 2 Qubit) -- these are the controls c1 and c2
+                                -> (1 ancilla : LVect 1 Qubit) -- this is the additional ancilla
+                                -> (1 bigN : LVect i Qubit) -- this is N represented in i Qubits
+                                -> (1 b : LVect (S i) Qubit) -- this is b plus the required additional qubit as the last qubit
+                                -> UStateT (t (S (S n))) (t (S (S n))) (LPair (LVect (3 + i)  Qubit) (LVect ((S i)) Qubit)) -- we collect the 2 controls, ancilla, a, and N in the same output LVect, and b in the other
 
+inPlaceSplitTest [c1,c2] [ancilla] [] [q] = pure $ (c1::c2::[ancilla]) # [q]
+inPlaceSplitTest [c1,c2] [ancilla] bigNs (b::bs) = do
+    bs <- (qftUInv (b::bs)) 
+    (bigNs) # bs <-(inPlaceQFTAdder bigNs (bs))
+    bs <- (qftU (bs)) -- the most signigifact bit in out case will be the first, which is where the overflow goes, so this is our control
+    pure $ ((++) (c1::c2::[ancilla]) bigNs) # (bs)
+
+export
+inPlaceSplitTestC : UnitaryOp t => {i: Nat} -> {n : Nat} 
+                                -> (1 controls : LVect 2 Qubit) -- these are the controls c1 and c2
+                                -> (1 ancilla : LVect 1 Qubit) -- this is the additional ancilla
+                                -> (1 bigN : LVect i Qubit) -- this is N represented in i Qubits
+                                -> (1 b : LVect (S i) Qubit) -- this is b plus the required additional qubit as the last qubit
+                                -> UStateT (t (S (S n))) (t (S (S n))) (LVect ((3 + i) + (S i)) Qubit) -- we collect the 2 controls, ancilla, a, and N in the same output LVect, and b in the other
+
+inPlaceSplitTestC [c1,c2] [ancilla] [] [q] = pure $ (c1::c2::ancilla::[q])
+inPlaceSplitTestC {i = S k} [c1,c2] [ancilla] bigNs (b::bs) = do
+    bs <- (qftUInv (b::bs)) 
+    (c2::bigNsbs) <- applyControlledAbs c2 (inPlaceQFTAdder2 bigNs (bs))
+    bigNs2 # bs2 <- splitQubitsInto (S k) (S (S k)) bigNsbs
+    bs <- (qftU (bs2)) -- the most signigifact bit in out case will be the first, which is where the overflow goes, so this is our control
+    rest <- reCombine (c1::c2::[ancilla]) bigNs2
+    pure $ ((++) rest bs)
+
+inPlaceSplitTestCS : UnitaryOp t => {i: Nat} -> {n : Nat} 
+                                -> (1 controls : LVect 2 Qubit) -- these are the controls c1 and c2
+                                -> (1 ancilla : LVect 1 Qubit) -- this is the additional ancilla
+                                -> (1 bigN : LVect i Qubit) -- this is N represented in i Qubits
+                                -> (1 b : LVect (S i) Qubit) -- this is b plus the required additional qubit as the last qubit
+                                -> UStateT (t (S (S n))) (t (S (S n))) (LPair (LVect (3 + i)  Qubit) (LVect ((S i)) Qubit)) -- we collect the 2 controls, ancilla, a, and N in the same output LVect, and b in the other
+
+inPlaceSplitTestCS [c1,c2] [ancilla] [] [q] = pure $ (c1::c2::[ancilla]) # [q]
+inPlaceSplitTestCS [c1,c2] [ancilla] bigNs (b::bs) = do
+    bs <- (qftUInv (b::bs)) 
+    (c2::bigNs) # bs <-applyControlWithSplitLVects c2 (inPlaceQFTAdder bigNs (bs))
+    bs <- (qftU (bs)) -- the most signigifact bit in out case will be the first, which is where the overflow goes, so this is our control
+    pure $ ((++) (c1::c2::[ancilla]) bigNs) # (bs)
+
+
+inPlaceSplitTestU : (Unitary 8)
+inPlaceSplitTestU = runUnitaryOp (do
+        cs <- supplyQubits 2--- recall that UnitaryOp can only ever get qubits from quantumOp, so we dont have to worry about whether the qubits will be distinct
+        ancilla <- supplyQubits 1
+        bigN <- supplyQubits 2
+        b <- supplyQubits 3
+        out <-  applyUStateTSplit (inPlaceSplitTestCS cs ancilla (bigN) (b))
+        pure out)   
+
+inPlaceSplitTestIo : IO (Unitary 8)
+inPlaceSplitTestIo = let
+  (uni) = inPlaceSplitTestU
+  (uni1, uni2) = UnitarySimulated.duplicateLinU uni
+  in
+    do
+      d <- draw uni
+      eo <- exportToQiskit "splittest.py" uni1
+      pure uni1 
+    
 ||| testing just the unitary part of modular exponentiation
 modularTest : (Unitary 18)
 modularTest = runUnitaryOp (do
@@ -218,6 +300,31 @@ modularTestIo = let
       eo <- exportToQiskit "modularNewest.py" uni1
       pure uni1 
 
+absTestU: UnitaryOp t => (1_ : LVect 5 Qubit) -> UStateT (t 5) (t 5) (LVect 5 Qubit)
+absTestU [c, c1,c2,q1,q2] =  do
+        --(q::qftcs) <- ( (qftUAbs cs))
+        --qsq <- reCombine qftcs [q]
+        out <- applyControlledAbs c (applyControlledAbs c1 (applyControlledAbs c2 (applyUnitary [q1,q2] (CNOT 0 1 (IdGate {n = 2})))))
+        pure (out)
+
+
+absTest : (Unitary 5)
+absTest = runUnitaryOp (do
+        cs <- supplyQubits 5--- recall that UnitaryOp can only ever get qubits from quantumOp, so we dont have to worry about whether the qubits will be distinct
+        out <- applyUStateT (absTestU cs)
+        pure out)   
+
+unit = controlled $ controlled $ controlled (CNOT 0 1 (IdGate {n = 2})) --(H 0 (P 0.1 1 (IdGate{n = 4}))) [1,3]
+
+absTestIo : IO (Unitary 5)
+absTestIo = let
+  (uni) = absTest
+  (uni1, uni2) = UnitarySimulated.duplicateLinU uni
+  in
+    do
+      d <- draw uni
+      eo <- exportToQiskit "abstest.py" uni1
+      pure uni1 
 
 partial public export
 main : IO ()
@@ -252,8 +359,11 @@ main = do
   --k <- encodingTestIo
   --ast <- adderTestIo
   --abs <-qftAbsTestIo
-  --normie <- qftTestIo
-  normie <- qftAbsTestIo
+  --qftTest <- qftTestIo
+  qftControl <- qftControlTestIo
+  --inPlaceSplitTestC <- inPlaceSplitTestIo
+  --dummy <- absTestIo
+  --modularAdder <- modularAdderTestIo
   --modular <- modularTestIo
   --qftabs <- testQFTAbs12
   pure ()

@@ -15,6 +15,13 @@ import QFT
 import Lemmas
 --import NatRules
 
+------------------------Quantum Modular Exponentiation------------------------
+
+||| This file contains two implementations of QME
+||| One, where the computationally most relevant set of qubits
+||| for a given function is separated out throughout the implementation,
+||| and one where everyting is done as usual
+
 
 --------------- CLASSICAL modular inverse when we know gcd = 1 ---------------
 
@@ -107,6 +114,17 @@ inPlaceQFTAdder2 {i = S k} (a :: as) (b::bs) = do --pattern matchign requires th
     pure $ (++) addAs unqftbs    
 
 export
+inPlaceQFTAdderUnified : UnitaryOp t => {i: Nat} -> {n : Nat} -> (1_ : LVect (i + S i) Qubit) -> UStateT (t n) (t n) ((LVect (i + S i) Qubit))
+inPlaceQFTAdderUnified {i = Z} [b] = pure $ [b] -- since the form of the lvect is i + S i, it is at least one
+inPlaceQFTAdderUnified {i = S k} (a::asbbs) = do --pattern matchign requires that the lvects be of this form for some reason - idris can be strange
+    as # bs <- splitQubitsInto (S k) (S (S k)) (a::asbbs)
+    qftbs <- (qftU (bs))
+    all <- addWithQFT2 (as) qftbs
+    addAs # addBs <- splitQubitsInto (S k) (S (S k)) all --{prf =lteSkS {k = k}} (S k) all
+    unqftbs <- (qftUInv (addBs))
+    pure $ (++) addAs unqftbs  
+
+export
 inPlaceQFTAdderConcat  : UnitaryOp t => {i: Nat} -> {n : Nat} -> (1_ : LVect i Qubit) -> (1_ : LVect (S i) Qubit) 
                                         -> UStateT (t n) (t n) (LVect (i + S i) Qubit)    
 inPlaceQFTAdderConcat [] b = pure b
@@ -150,8 +168,7 @@ inPlaceQFTAdderInvConcat a [] impossible
 inPlaceQFTAdderInvConcat (a :: as) (b::bs) = do --pattern matching requires that the lvects be of this form for some reason - idris can be strange
     addAs # unqftbs <- inPlaceQFTAdderInv (a :: as) (b::bs)
     pure (LinearTypes.(++) addAs unqftbs)
-
-
+    
 ---------------IN-PLACE MODULAR ADDER---------------       
 
 export
@@ -181,6 +198,35 @@ inPlaceModularAdder [c1,c2] [ancilla] (a::as) bigNs (b::bs) = do
     aAndN <- reCombine as bigNs
     pure $ ((++) (c1::c2::[ancilla]) aAndN) # (bs)
 
+inPlaceModularAdderUnified : UnitaryOp t => {i: Nat} -> {n : Nat} 
+                                -> (1 controls : LVect 2 Qubit) -- these are the controls c1 and c2
+                                -> (1 ancilla : LVect 1 Qubit) -- this is the additional ancilla
+                                -> (1 a : LVect i Qubit) -- this is a represented in i Qubits
+                                -> (1 bigN : LVect i Qubit) -- this is N represented in i Qubits
+                                -> (1 b : LVect (S i) Qubit) -- this is b plus the required additional qubit as the last qubit
+                                -> UStateT (t (S (S n))) (t (S (S n))) ((LVect (3 + i + S i + i) Qubit)) -- we collect the 2 controls, ancilla, a, and N in the same output LVect, and b in the other
+
+inPlaceModularAdderUnified [c1,c2] [ancilla] [] [] [q] = pure $ (c1::c2::q::[ancilla])
+inPlaceModularAdderUnified {i = S k} [c1,c2] [ancilla] (a::as) bigNs (b::bs) = do
+    (c1::c2::asbs) <- (applyControlledAbs c1 (applyControlledAbs c2 (inPlaceQFTAdder2 (a::as) (b::bs))))
+    as # bs <- splitQubitsInto (S k) (S (S k)) asbs
+    bigNsbs <-  adjointUST (inPlaceQFTAdder2 bigNs (bs))
+    bigNs # bs <- splitQubitsInto (S k) (S (S k)) bigNsbs
+    (s::qibs) <- (qftUInv (bs)) -- the most signigifact bit in out case will be the first, which is where the overflow goes, so this is our control
+    [s,ancilla] <- applyCNOT s ancilla
+    qftbs <- (qftUInv (s::qibs))
+    ancilla::bigNsbs <- applyControlledAbs ancilla  (adjointUST (inPlaceQFTAdder2 bigNs qftbs))
+    bigNs # bs <- splitQubitsInto (S k) (S (S k)) bigNsbs
+    (c1::c2::asbs) <- applyControlledAbs c1 (applyControlledAbs c2 (adjointUST (inPlaceQFTAdder2 as bs)))
+    as # bs <- splitQubitsInto (S k) (S (S k)) asbs
+    (s::qibs) <- (qftUInv (bs))
+    [s] <- applyUnitary [s] XGate
+    [s,ancilla] <- applyCNOT s ancilla
+    [s] <- applyUnitary [s] XGate
+    qftbs <- (qftU (s::qibs))
+    (c1::c2::asbs) <-  applyControlledAbs c1 (applyControlledAbs c2 (inPlaceQFTAdder2 (as) (qftbs)))
+    aAndN <- reCombine asbs bigNs
+    pure $ ((++) (c1::c2::[ancilla]) aAndN)
 
 ---------------IN-PLACE MODULAR MULTIPLIER---------------
 

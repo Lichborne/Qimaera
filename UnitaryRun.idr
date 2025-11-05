@@ -50,22 +50,10 @@ interface RunUnitaryOp (0 t : Nat -> Type) where
   
   ||| Apply a unitary circuit to the qubits specified by the Vector argument
   applyUST : {n : Nat} -> {i : Nat} -> (1_: UStateT (t n) (t n) (LVect i Qubit)) -> UStateT (t n) (t n) (LVect i Qubit)
-
-  ||| Apply a unitary directly; kept around for convenience
-  applyUnitaryDirectly : {n : Nat} -> {i : Nat} -> Unitary i -> (1_ : LVect i Qubit) -> UStateT (t n) (t n) (LVect i Qubit)
-
-  ||| Apply Hadamard to specified qubit
-  applyHQ: UnitaryOp t => {n : Nat} -> (1_ : Qubit) -> UStateT (t n) (t n) (LVect 1 Qubit)
-  applyHQ q = do
-              q <- applyUST {t = t} (applyH {t = t} {n = n } (q))
-              pure q
-                          
+     
   ||| Execute a quantum operation : start and finish with trivial quantum state
   ||| (0 qubits) and measure 'n' qubits in the process
   runUST : {n:Nat} -> UStateT (t 0) (t n) (LVect i Qubit) -> (t n)
-
-
-exportU : {n:Nat} -> UStateT (t 0) (t n) (LVect i Qubit) -> IO (Unitary n)
 
 
 
@@ -82,4 +70,4 @@ applyUSTSimulatedR : {n : Nat} -> {i : Nat} -> (1_ : UStateT (Unitay n) (Unitay 
                    -> QStateT (Unitay n) (Unitay n) (LVect i  Qubit)
 applyUSTSimulatedR ust = MkQST (applyUSTR' ust )
 
-        -}
+      

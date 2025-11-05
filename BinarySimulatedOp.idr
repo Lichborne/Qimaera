@@ -20,6 +20,9 @@ import Control.Linear.LIO
 import QuantumOp
 import SimulatedOp
 
+||| THIS MODULE IS UNDER REDEVELOPMENT (FOR PARSING OF OUTPUTS)
+||| BE ADVISED!
+
   
 ||| add a string that describes a new function to string
 addStringFunc: {n : Nat} -> String -> (counter:Nat) -> Unitary n -> String

@@ -482,7 +482,9 @@ findInLinQ {n = S r} (MkQubit q) (MkQubit m :: xs) = case decEq q m of
   No _ => (MkQubit m :: (findInLinQ {n = r} (MkQubit q) xs))
 findInLinQ (MkQubit a) (x :: xs) = xs -- this is vacuous, but idris can't figure this out
 
+
 |||Find the smallest missing in an ordered vector
+export
 smallestMissing': (v: Vect n Nat) -> Nat
 smallestMissing' [] = Z
 smallestMissing' [Z] = S Z 
@@ -492,6 +494,7 @@ smallestMissing' (x::y::ys) = case decEq (S x) y of
        No _ => (S x)
       
 |||Find the smallest missing in an ordered vector
+export
 smallestMissing: (v: Vect n Nat) -> Nat
 smallestMissing [] = Z
 smallestMissing [Z] = S Z 
@@ -503,7 +506,7 @@ smallestMissing (x::y::ys) = case x of
   (S k) => Z
 
 ||| recalculate the counter
-private
+export
 reCalculateCounter : {n:Nat} -> (v: Vect n Qubit) -> Nat
 reCalculateCounter [] = 0
 reCalculateCounter {n = S k} (x::xs) = smallestMissing (sort (toVectN (x::xs)))
@@ -799,6 +802,26 @@ newQubitsUST p = MkUST (newQubits' p) where
     let (qubits # v') = newQubitsPointersNoCount q (mkQubitV 0 m)
     in (idUp un q # qubits)
 
+export
+makeSafeForAbstractControl : UnitaryOp t => {n:Nat} -> (1c:Qubit) -> (1_ : LVect i Qubit) -> UStateT (t n) (t n) (LPair (Qubit) (LVect i Qubit))
+makeSafeForAbstractControl any [] = pure $ any # []
+makeSafeForAbstractControl (MkQubit Z) [MkQubit Z] = pure $ (MkQubit Z) # [MkQubit Z] --invalid case in our context, no change
+makeSafeForAbstractControl (MkQubit Z) [MkQubit (S m)] = pure $ (MkQubit Z) # [MkQubit m]
+makeSafeForAbstractControl (MkQubit (S m)) [MkQubit Z] = pure $ (MkQubit (S m)) # [MkQubit Z]
+makeSafeForAbstractControl (MkQubit Z) (MkQubit Z :: qs) = pure $ (MkQubit Z) # (MkQubit Z :: qs) --invalid case in our context, so whatever is fine
+makeSafeForAbstractControl (MkQubit Z) (MkQubit (S m) :: qs) = do
+  control # rest <- makeSafeForAbstractControl (MkQubit Z) qs
+  pure $ control # (MkQubit m :: rest)
+makeSafeForAbstractControl (MkQubit (S k)) (MkQubit (S m) :: qs) = case isLT k m of
+  Yes prfYes => do 
+    control # rest <- makeSafeForAbstractControl (MkQubit (S k)) qs
+    pure $ control # (MkQubit m :: rest)
+  No prfNo => do 
+    control # rest <- makeSafeForAbstractControl (MkQubit (S k)) qs
+    pure $ control # (MkQubit (S m ):: rest)
+makeSafeForAbstractControl (MkQubit (S k)) (MkQubit Z :: qs) = do 
+    control # rest <- makeSafeForAbstractControl (MkQubit (S k)) qs
+    pure $ control # (MkQubit (Z) :: rest)
 
 public export
 interface RunUnitaryOp (0 t : Nat -> Type) where

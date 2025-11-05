@@ -3,11 +3,12 @@ module UnitarySimulated
 import Data.Vect
 import Data.Nat
 import Control.Monad.State
+import Data.Vect.Sort
 import Decidable.Equality
 import System.File
 import Injection
 import Matrix
-import SimulatedOp
+--import UnitaryOp
 import Complex
 import Lemmas
 import UnitaryLinear
@@ -20,7 +21,6 @@ import QStateT
 import Data.Linear.Notation
 import Data.Linear.Interface
 import QuantumOp
-
 
 
 public export
@@ -37,44 +37,63 @@ exportUnitarySelf : {i:Nat} -> (1_: Unitary n) -> (1 _ : UStateT (Unitary n) (Un
 exportUnitarySelf un ust = let op # lvect = runUStateT un ust in
                                       let () = discardq lvect in
                                         op
-||| Auxiliary function for applying a circuit to some qubits
-private
-applyUnitary' : {n : Nat} -> {i : Nat} -> --let lvOut # vect = distributeDupedLVectVect lvIn in ( (apply ui u vect) ) # lvOut
-                (1 _ : LVect i Qubit) -> Unitary i -> (1 _ : Unitary n) -> (LPair (Unitary n) (LVect i Qubit))
-applyUnitary' lvIn ui (u) = let lvOut # vect = distributeDupedLVectVect lvIn in 
-                          let un # _ = ( (applyOrErrorIO ui u vect) ) in un # lvOut
 
-export
-applyUnitarySimulated : {n : Nat} -> {i : Nat} ->
-  (1 _ : LVect i Qubit) -> Unitary i -> UStateT (Unitary n) (Unitary n) (LVect i Qubit)
-applyUnitarySimulated lvect ui = MkUST (applyUnitary' lvect (ui))
-
-private
-applyUnitaryOwn' : {n : Nat} -> {i : Nat} -> --let lvOut # vect = distributeDupedLVectVect lvIn in ( (apply ui u vect) ) # lvOut
-                (1 _ : LVect i Qubit) -> (1_ : Unitary i) -> (1 _ : Unitary n) -> (LPair (Unitary n) (LVect i Qubit))
-applyUnitaryOwn' lvIn ui (u) = let lvOut # vect = distributeDupedLVectVect lvIn in 
-                                let un # _ = ( (applyOrErrorIO ui u vect) ) in un # lvOut
-
-export
-applyUnitaryOwnSimulated : {n : Nat} -> {i : Nat} ->
-  (1 _ : LVect i Qubit) -> (1_ : Unitary i) -> UStateT (Unitary n) (Unitary n) (LVect i Qubit)
-applyUnitaryOwnSimulated lvect ui = MkUST (applyUnitaryOwn' lvect (ui))
-
-applyInternal : {n : Nat} -> {i : Nat} ->
-  (1 _ : LVect i Qubit) -> Unitary i -> UStateT (Unitary n) (Unitary n) (LVect i Qubit)
-applyInternal lvect ui = MkUST (applyUnitary' lvect ui)
 
 ------- below, it's the same pattern -> could be abstracted, noted for potential update --------------------
+
+reCalculateNew : {n:Nat} -> (v: Vect n Nat) -> Nat
+reCalculateNew [] = 0
+reCalculateNew {n = S k} (x::xs) = smallestMissing (sort ((x::xs)))
+
+newVectOrder : {i:Nat} -> (p : Nat) -> (v: Vect i Nat) -> (Vect p Nat)
+newVectOrder 0 _ = (([]))
+newVectOrder {i} (S p) xs = let newcounter = (reCalculateNew (xs)) in
+                let (v) = newVectOrder p (newcounter :: xs)
+                  in ((newcounter :: v))
+                  
+plusminusisN : (i,n:Nat) -> Vect (plus i (minus n i)) Nat -> Vect (plus (minus n i) i) Nat
+plusminusisN i n vect = rewrite sym $ plusCommutative i (minus n i) in vect
+      
+plusminusn : (i,n:Nat) -> LTE i n -> Vect (plus (minus n i) i) Nat -> Vect n Nat
+plusminusn i n lte vect = rewrite sym $ plusMinusLte i n lte in vect
+
+newVectOrderN : {i:Nat} -> (n:Nat) -> (v: Vect i Nat) -> (Vect n Nat)
+newVectOrderN n [] = newVectOrder n []
+newVectOrderN {i} n v = case isLTE i n of
+    Yes prfYes => let vect = (v ++ newVectOrder (minus n i) v) in 
+                    let vectOut = (plusminusn i n prfYes (rewrite plusCommutative (minus n i) i in vect))
+                      in vectOut
+    No prf => toVectN $ makeNeutralVect n -- irrelevant in terms of control flow
+
+export
+findInLin : {n:Nat} -> (q : Nat) -> Vect (S n) Nat -> (Vect n Nat)
+findInLin ( q) [] impossible
+findInLin {n = Z} ( q) ( m :: xs) = []
+findInLin {n = S r} ( q) ( m :: xs) = case decEq q m of
+  Yes _ => xs
+  No _ => ( m :: (findInLin {n = r} ( q) xs))
+findInLin ( a) (x :: xs) = xs 
 
 private
 applyControlSimulated': {n : Nat} -> {i : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (Unitary n) (Unitary n) (LVect i Qubit))->      
     (1_ : Unitary (S n)) -> LPair (Unitary (S n)) (LVect (S i) Qubit)
-applyControlSimulated' {n} q ust usn = 
+applyControlSimulated' {n} {i} q ust usn = 
   let (q, k) = qubitToNatPair q in
-    let vn = findInLinQ q (makeNeutralVect (S n)) in
-      let un # lvOut = runUStateT (IdGate {n = n}) ust in
-        let unew # _ = ( (applyOrErrorIO (controlled un) usn (k :: toVectN vn)) ) in unew # (q :: lvOut)
-        
+    let un # lvOut = runUStateT (IdGate {n = n}) ust in
+      let lvMid # vect = distributeDupedLVectVect lvOut in
+        let v = newVectOrderN (S n) vect in
+           let vn = findInLin k v in
+            case decInj (S n) (k :: vn) of 
+              Yes prfYes => let unew = (UnitaryLinear.apply (controlled un) usn (k :: vn ) {prf = prfYes}) in unew # (q :: lvMid)
+              No prfNo => let applicableSn = toVectN  $ makeNeutralVect (S n) in -- this is only ever reached in the case of a multiple-control
+                                                                          -- operation which reduced the dimension of n
+                                                                          -- this can be tested by using UnitaryNoPrf
+                                                                          -- which works without issue
+                            let un # _ = (applyOrErrorIO (controlled un) usn (applicableSn)) in un # (q :: lvMid)
+            --In the no case, we have a controlled applicaiton inside a controlled application where the control qubit is small, 
+            --so we index out. We can fix this by just providing the information that qubits are available
+            --to the controlled operation, while keeping the LVect intact. and then allowing
+            --applyControlledAbs to use the LVect to correctly apply the controlled operation
 
 export
 applyControlAbsSimulated: {n : Nat} -> {i : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (Unitary n) (Unitary n) (LVect i Qubit))->      
@@ -92,9 +111,8 @@ duplicateLinU (CNOT c t g {prf1} {prf2} {prf3 = prf3}) = let (g1,g2) = duplicate
 applyUnitaryAbs': {n : Nat} -> {i : Nat} -> (1_ : UStateT (Unitary n) (Unitary n) (LVect i Qubit))      
                    -> (1 _ : Unitary n) -> LPair (Unitary n) (LVect i Qubit)
 applyUnitaryAbs' ust un = 
-  let (un1, un2)= duplicateLinU un in 
-  let (unew # lvect) = runUStateT un1 ust in
-        let ufinal = compose unew un2 in
+  let (unew # lvect) = runUStateT IdGate ust in
+        let ufinal = compose unew un in
           do ufinal # (lvect)
 
 ||| Unitary implementation of abstract unitary application (that is, whatever one built using UStateT) 
@@ -106,9 +124,8 @@ applyUnitaryAbsSimulated ust = MkUST (applyUnitaryAbs' ust )
 applyWithSplitLVects' : {n : Nat} -> {i : Nat} -> {j : Nat} -> (1_ : UStateT (Unitary n) (Unitary n) (LPair (LVect i Qubit) (LVect j Qubit)))
                          -> (1_: Unitary n) -> LPair (Unitary n) (LPair (LVect i Qubit) (LVect j Qubit))
 applyWithSplitLVects' ust (un) = 
-  let (un1, un2)= duplicateLinU un in -- we need this because otherwise we need a wrapper around unitary, since un is linear
-  let ((unew) # lvect) = runUStateT (un1) ust in
-        let unew = compose unew un2 in
+    let ((unew) # lvect) = runUStateT IdGate ust in
+        let unew = compose unew un in
           do ((unew) # (lvect))
 
 ||| Implementation of abstract split application - representationally useful
@@ -120,9 +137,22 @@ applyWithSplitLVectsSimulated ust = MkUST (applyWithSplitLVects' ust)
 applyControlledUSplitSim' : {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (Unitary n) (Unitary n) (LPair (LVect i Qubit) (LVect j Qubit)))
                              -> (1_ : Unitary (S n)) -> LPair (Unitary (S n)) (LPair (LVect (S (i)) Qubit) (LVect j Qubit))
 applyControlledUSplitSim' q ust (usn)= 
-  let (un) # (lvLeft # lvRight)= runUStateT ((IdGate {n = n})) ust in
-  let unew = compose (controlled un) usn in
-    (unew) # ((q :: lvLeft) # lvRight)
+  let (q, k) = qubitToNatPair q in
+    let un # (lvLeft # lvRight) = runUStateT (IdGate {n = n}) ust in
+      let lvMid # vect = distributeDupedLVectVect (lvLeft ++ lvRight) in
+        let v = newVectOrderN (S n) vect in
+           let vn = findInLin k v in
+            case decInj (S n) (k :: vn) of 
+              Yes prfYes => let unew = (UnitaryLinear.apply (controlled un) usn (k :: vn) {prf = prfYes}) in 
+                              let lvOutL # lvOutR = splitLVinto i j lvMid in 
+                                unew # (q :: lvOutL # lvOutR)
+              No prfNo => let applicableSn = toVectN $ makeNeutralVect (S n) in -- this is only ever reached in the case of a multiple control
+                                                                          -- operation which reduced the dimension of n
+                                                                          -- this can be tested by using UnitaryNoPrf
+                                                                          -- which works without issue
+                            let un # _ = (applyOrErrorIO (controlled un) usn (applicableSn)) in 
+                              let lvOutL # lvOutR = splitLVinto i j lvMid in 
+                                un # (q :: lvOutL # lvOutR)
 
 ||| Implementation of abstract controlled split application     
 applyControlledSimulatedSplit: {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (Unitary n) (Unitary n) (LPair (LVect i Qubit) (LVect j Qubit)))
@@ -157,6 +187,51 @@ applyParallelSimulated: {n : Nat} -> {i : Nat} -> {j : Nat} -> (1_ : UStateT (Un
 applyParallelSimulated ust1 ust2 = MkUST (applyParallelSimulated' ust1 ust2)
 
 
+||| Auxiliary function for applying a circuit to some qubits
+||| this has to recognize and handle the case where it is applied within an abstract control
+||| since this is the only was it can receive an lvect of qubits that contains an unexpected element, this is easy to handle 
+||| using decidability.
+private
+applyUnitary' : {n : Nat} -> {i : Nat} -> --let lvOut # vect = distributeDupedLVectVect lvIn in ( (apply ui u vect) ) # lvOut
+                (1 _ : LVect i Qubit) -> Unitary i -> (1 _ : Unitary n) -> (LPair (Unitary n) (LVect i Qubit))
+applyUnitary' {n} {i} lvIn ui (u) = let lvOut # vect = distributeDupedLVectVect lvIn in 
+   case decInj (n) vect of 
+            Yes prfYes => let unew = (UnitaryLinear.apply ui u vect {prf = prfYes}) in unew # (lvOut)
+            No prfNo => let applicable = toVectN  $ makeNeutralVect i in -- this is only ever reached in the case of a control
+                                                                          -- operation which reduced the dimension of n
+                                                                          -- this can be tested by using UnitaryNoPrf
+                                                                          -- which works without issue
+                          let un # _ = (applyOrErrorIO ui u (applicable)) in un # lvOut 
+            --In the no case, we have a controlled applicaiton where the control qubit is small, 
+            --so we index out. We can fix this by just providing the information that qubits are available
+            --to the controlled operation, while keeping the LVect intact. and then allowing
+            -- applyControlledAbs to use the LVect to correctly apply the controlled operation
+export
+applyUnitarySimulated : {n : Nat} -> {i : Nat} ->
+  (1 _ : LVect i Qubit) -> Unitary i -> UStateT (Unitary n) (Unitary n) (LVect i Qubit)
+applyUnitarySimulated lvect ui = MkUST (applyUnitary' lvect (ui))
+
+private
+applyUnitaryOwn' : {n : Nat} -> {i : Nat} -> --let lvOut # vect = distributeDupedLVectVect lvIn in ( (apply ui u vect) ) # lvOut
+                (1 _ : LVect i Qubit) -> (1_ : Unitary i) -> (1 _ : Unitary n) -> (LPair (Unitary n) (LVect i Qubit))
+applyUnitaryOwn' lvIn ui (u) = let lvOut # vect = distributeDupedLVectVect lvIn in 
+    case decInj (n) vect of 
+              Yes prfYes => let unew = (UnitaryLinear.apply ui u vect {prf = prfYes}) in unew # (lvOut)
+              No prfNo => let applicable = toVectN  $ makeNeutralVect i in -- this is only ever reached in the case of a control
+                                                                            -- operation which reduced the dimension of n
+                                                                            -- this can be tested by using UnitaryNoPrf
+                                                                            -- which works without issue
+                            let un # _ = (applyOrErrorIO ui u (applicable)) in un # lvOut 
+
+export
+applyUnitaryOwnSimulated : {n : Nat} -> {i : Nat} ->
+  (1 _ : LVect i Qubit) -> (1_ : Unitary i) -> UStateT (Unitary n) (Unitary n) (LVect i Qubit)
+applyUnitaryOwnSimulated lvect ui = MkUST (applyUnitaryOwn' lvect (ui))
+
+applyInternal : {n : Nat} -> {i : Nat} ->
+  (1 _ : LVect i Qubit) -> Unitary i -> UStateT (Unitary n) (Unitary n) (LVect i Qubit)
+applyInternal lvect ui = MkUST (applyUnitary' lvect ui)
+
 export
 applyHSim : {n : Nat} -> (1 _ : Qubit) -> UStateT (Unitary n) (Unitary n) (LVect 1 Qubit)
 applyHSim q = do
@@ -187,6 +262,7 @@ invert ust un =
 export
 adjointUST' : (1_ : UStateT (Unitary n) (Unitary n) (LVect i Qubit)) -> (UStateT (Unitary n) (Unitary n) (LVect i Qubit))
 adjointUST' ust = MkUST (invert ust)  
+
   
 export
 UnitaryOp Unitary where
@@ -205,3 +281,38 @@ UnitaryOp Unitary where
   applyP = applyPSim
   applyCNOT = applyCNOTSim
   exportSelf = exportUnitarySelf
+
+
+  {-
+  private
+makeSafeForAbstractControlVect : (1c:Nat) -> (1_ : Vect i Nat) -> (LPair (Nat) (Vect i Nat))
+
+private
+maximumControls: (n:Nat) -> (1_ : Vect i Nat) -> List Nat
+maximumControls n [] = []
+maximumControls n (k::ks) = case isLTE n k of
+  Yes prf => k :: (maximumControls n ks)
+  No prf => (maximumControls n ks)
+
+
+smallestMissings : List Nat -> Vect i Nat -> List Nat
+smallestMissings [] _ =  []
+smallestMissings (x::xs) vect = (smallestMissing vect ) :: (smallestMissings xs vect)
+
+makeSafe : List Nat -> Vect i Nat -> Vect i Nat
+makeSafe [] vec = vec
+makeSafe (c::cs) vec = let _ # vec = makeSafeForAbstractControlVect c vec in
+                      makeSafe cs vec
+
+  makeSafeForAbstractControlVect any [] = any # []
+makeSafeForAbstractControlVect (Z) [Z] = (Z) # [Z] --invalid case in our context, no change
+makeSafeForAbstractControlVect (Z) [(S m)] = (Z) # [m]
+makeSafeForAbstractControlVect ((S m)) [Z] = ((S m)) # [Z]
+makeSafeForAbstractControlVect (Z) (Z :: qs) = (Z) # (Z :: qs) --invalid case in our context, so whatever is fine
+makeSafeForAbstractControlVect (Z) ((S m) :: qs) = let control # rest = makeSafeForAbstractControlVect (Z) qs in control # (m :: rest)
+makeSafeForAbstractControlVect ((S k)) ((S m) :: qs) = case isLT k m of
+  Yes prfYes => let control # rest = makeSafeForAbstractControlVect ((S k)) qs in control # (m :: rest)
+  No prfNo => let control # rest = makeSafeForAbstractControlVect ((S k)) qs in control # ((S m):: rest)
+makeSafeForAbstractControlVect ((S k)) (Z :: qs) = let control # rest = makeSafeForAbstractControlVect ((S k)) qs in control # ((Z) :: rest)
+
+}

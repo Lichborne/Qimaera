@@ -220,6 +220,7 @@ applyControlledSimulatedSplit: {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) 
                              -> UStateT (SimulatedOp (S n)) (SimulatedOp (S n)) (LPair (LVect (S (i)) Qubit) (LVect j Qubit))
 applyControlledSimulatedSplit ctrl ust = MkUST (applyControlledUSplitSim' ctrl ust)   
 
+
 invert: (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect i Qubit)) -> (1_ : (SimulatedOp n)) -> LPair (SimulatedOp n) (LVect i Qubit)
 invert ust (MkSimulatedOp qn u v counter)=  
     let (MkSimulatedOp dummyqs un vn dummyc) # lvOut = runUStateT (MkSimulatedOp (neutralIdPow n) (IdGate {n = n}) v counter) ust in
