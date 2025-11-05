@@ -38,7 +38,7 @@ applyUnitaryNoPrf' : {n : Nat} -> {i : Nat} -> --let lvOut # vect = distributeDu
 applyUnitaryNoPrf' lvIn ui (u) = let lvOut # vect = distributeDupedLVectVect lvIn in 
   case decInj (n) vect of 
             Yes prfYes => let unew = (UnitaryNoPrf.apply ui u vect) in unew # (lvOut)
-            No prfNo => let applicable = toVectN  $ makeNeutralVect i in --SEE UNITARYSIMULATED FOR MORE DETAIL
+            No prfNo => let applicable = clampUniqueWithCap n vect in --SEE UNITARYSIMULATED FOR MORE DETAIL
                           let un = (UnitaryNoPrf.apply ui u (applicable)) in un # lvOut 
 
 export
@@ -49,8 +49,11 @@ applyUnitaryNoPrfSimulated lvect ui = MkUST (applyUnitaryNoPrf' lvect (toNoPrf u
 private
 applyUnitaryNoPrfOwn' : {n : Nat} -> {i : Nat} -> --let lvOut # vect = distributeDupedLVectVect lvIn in ( (apply ui u vect) ) # lvOut
                 (1 _ : LVect i Qubit) -> (1_ : UnitaryNoPrf i) -> (1 _ : UnitaryNoPrf n) -> (LPair (UnitaryNoPrf n) (LVect i Qubit))
-applyUnitaryNoPrfOwn' lvIn ui (u) = let lvOut # vect = distributeDupedLVectVect lvIn in ( (apply ui u vect) ) # lvOut
-
+applyUnitaryNoPrfOwn' lvIn ui (u) = let lvOut # vect = distributeDupedLVectVect lvIn in 
+  case decInj (n) vect of 
+            Yes prfYes => let unew = (UnitaryNoPrf.apply ui u vect) in unew # (lvOut)
+            No prfNo => let applicable = clampUniqueWithCap n vect in --SEE UNITARYSIMULATED FOR MORE DETAIL
+                          let un = (UnitaryNoPrf.apply ui u (applicable)) in un # lvOut 
 export
 applyUnitaryNoPrfOwnSimulated : {n : Nat} -> {i : Nat} ->
   (1 _ : LVect i Qubit) -> (1_ : UnitaryNoPrf i) -> UStateT (UnitaryNoPrf n) (UnitaryNoPrf n) (LVect i Qubit)
@@ -68,11 +71,13 @@ applyControlSimulated' {n} q ust usn =
   let un # lvOut = runUStateT (IdGate {n = n}) ust in
     let (q, k) = qubitToNatPair q in
       let lvMid # vect = distributeDupedLVectVect lvOut in
-        let v = newVectOrderN (S n) vect in
-          let vn = findInLin k v in
-            case decInj (S n) (k :: vn) of 
-              Yes prfYes => let unew = (UnitaryNoPrf.apply (controlled un) usn (k :: vn )) in unew # (q :: lvMid)
-              No prfNo => let applicableSn = toVectN  $ makeNeutralVect (S n) in -- this is only ever reached in the case of a multiple-control
+        let checkIfControl = (length (maximumControls n vect)) in
+          case isGT checkIfControl 0 of 
+            No prfNo => let vn = findInLin k (makeNeutralVectN (S n)) in let un = (UnitaryNoPrf.apply (UnitaryNoPrf.controlled un) usn (k::vn)) in un # (q :: lvMid)
+            Yes prfYes => let v = makeNeutralVectN (S n) in let vn = findInLin k v in
+              case decInj (S n) (k :: vn) of 
+                Yes prfYes => let unew = (UnitaryNoPrf.apply (controlled un) usn (k :: vn )) in unew # (q :: lvMid)
+                No prfNo => let applicableSn = makeNeutralVectN (S n) in -- this is only ever reached in the case of a multiple-control
                                                                           -- operation which reduced the dimension of n
                                                                           -- this can be tested by using UnitaryNoPrf
                                                                           -- which works without issue
@@ -123,15 +128,16 @@ applyControlledUSplitSim' q ust (usn)=
   let (q, k) = qubitToNatPair q in
     let un # (lvLeft # lvRight) = runUStateT (IdGate {n = n}) ust in
       let lvMid # vect = distributeDupedLVectVect (lvLeft ++ lvRight) in
-        let v = newVectOrderN (S n) vect in
-           let vn = findInLin k v in
-            case decInj (S n) (k :: vn) of 
-              Yes prfYes => let unew = (UnitaryNoPrf.apply (controlled un) usn (k :: vn)) in 
-                              let lvOutL # lvOutR = splitLVinto i j lvMid in 
+        let lvOutL # lvOutR = splitLVinto i j lvMid in 
+          let checkIfControl = (length (maximumControls n vect)) in
+          case isGT checkIfControl 0 of 
+            No prfNo => let vn = findInLin k (makeNeutralVectN (S n)) in let un = (UnitaryNoPrf.apply (controlled un) usn (k::vn)) in un # (q :: lvOutL # lvOutR)
+            Yes prfYes => let v = makeNeutralVectN (S n) in let vn = findInLin k v in   
+              case decInj (S n) (k :: vn) of 
+                Yes prfYes => let unew = (UnitaryNoPrf.apply (controlled un) usn (k :: vn)) in                          
                                 unew # (q :: lvOutL # lvOutR)
-              No prfNo => let applicableSn = toVectN $ makeNeutralVect (S n) in --SEE UNITARYSIMULATED FOR MORE DETAIL
+                No prfNo => let applicableSn = makeNeutralVectN (S n) in --SEE UNITARYSIMULATED FOR MORE DETAIL
                             let un = (UnitaryNoPrf.apply (controlled un) usn (applicableSn)) in 
-                              let lvOutL # lvOutR = splitLVinto i j lvMid in 
                                 un # (q :: lvOutL # lvOutR)
 
 ||| Implementation of abstract controlled split application     

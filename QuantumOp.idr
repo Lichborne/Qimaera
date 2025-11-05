@@ -462,9 +462,24 @@ makeNeutralVect' Z = []
 makeNeutralVect' (S k) = (MkQubit k) :: makeNeutralVect' k
 
 ||| make a basic vector (basically newqubitspointers n but only for vect)
-export
+private
 makeNeutralVect : (n:Nat) -> Vect n Qubit
 makeNeutralVect k = reverse $ makeNeutralVect' k
+
+||| make a neutral (0 to n) qubit vector
+private
+makeNeutralVectN' : (n:Nat) -> Vect n Nat
+makeNeutralVectN' Z = []
+makeNeutralVectN' (S k) = ( k) :: makeNeutralVectN' k
+
+||| make a basic vector (basically newqubitspointers n but only for vect)
+export
+makeNeutralVectN : (n:Nat) -> Vect n Nat
+makeNeutralVectN k = reverse $ makeNeutralVectN' k
+
+passDownForControl : {i:Nat} -> (1 _ : LVect i Qubit) -> LPair (LVect i Qubit) (LVect i Qubit) 
+passDownForControl [] = [] # []
+passDownForControl {i} xs = xs # (toLVectQQ $ makeNeutralVect i)
 
 ||| duplicate a qubit and take the natural number used to constructed out
 export
@@ -495,6 +510,36 @@ findInLinQ {n = S r} (MkQubit q) (MkQubit m :: xs) = case decEq q m of
   Yes _ => xs
   No _ => (MkQubit m :: (findInLinQ {n = r} (MkQubit q) xs))
 findInLinQ (MkQubit a) (x :: xs) = xs -- this is vacuous, but idris can't figure this out
+
+export
+predNat : Nat -> Nat
+predNat Z     = 0
+predNat (S k) = k
+
+total export
+searchFree : (used : List Nat) -> (candidate : Nat) -> Nat
+searchFree used Z =
+  if elem 0 used then 0 else 0
+searchFree used (S k) =
+  if elem (Prelude.S k) used
+     then searchFree used k   -- total
+     else S k
+
+export
+chooseSlot : (cap : Nat) -> (used : List Nat) -> (x : Nat) -> Nat
+chooseSlot cap used x = searchFree used (min x (predNat cap))
+   
+export
+clampUniqueWithCap :  {m : Nat} -> (cap : Nat) -> Vect m Nat -> Vect m Nat
+clampUniqueWithCap {m} cap xs = snd (helper [] xs)
+  where
+    helper : List Nat -> Vect k Nat -> (List Nat, Vect k Nat)
+    helper used [] = (used, [])
+    helper used (x :: xs') =
+      let y = chooseSlot cap used x
+          used' = y :: used
+          (used'' , ys) = helper used' xs'
+      in (used'', y :: ys)
 
 
 |||Find the smallest missing in an ordered vector
@@ -570,19 +615,15 @@ public export
 data SimulatedOp : Nat -> Type where
   MkSimulatedOp : {n : Nat} -> Matrix (power 2 n) 1 -> Unitary n -> Vect n Qubit -> Nat -> SimulatedOp n
 
-{-
-applyUnitary_ : {n : Nat} -> {i : Nat} ->
-  (1 _ : LVect i Qubit) -> Unitary i -> (1 _ : SimulatedOp n) -> R (LPair (SimulatedOp n) (LVect i Qubit))
-applyUnitary_ v u us = 
-    let (us1 # v') # ind = listIndices us v 
-        us2 = applyCirc ind u us1
-    in pure1 (us2 # v') where
-      applyCirc : Vect i Nat -> Unitary i -> (1 _ : SimulatedOp n) -> SimulatedOp n
-      applyCirc v IdGate ust = ust
-      applyCirc v gate (MkSimulatedOp vs un counter) = 
-      --let MkUnitaryUse vs un counter = applyCirc v g st in
-      MkSimulatedOp vs (UnitaryLinear.apply gate un v {prf = believe_me ()}) counter 
--}
+
+
+export
+neutralOp' : UnitaryOp t => {n:Nat} -> SimulatedOp n
+neutralOp' {n} = (MkSimulatedOp (neutralIdPow n) (IdGate {n = n}) (makeNeutralVect n) n)
+
+export
+runNeutral' :  UnitaryOp t => {n : Nat} -> (1 _ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect n Qubit) ) -> LPair (SimulatedOp n) (LVect n Qubit)
+runNeutral' {n} ust = runUStateT (MkSimulatedOp (neutralIdPow n) (IdGate {n = n}) (makeNeutralVect n) n) ust
 
 export
 listIndex : (1 _ : SimulatedOp n) -> (1 _ : Qubit) -> LFstPair (LPair (SimulatedOp n) Qubit) Nat
@@ -981,6 +1022,13 @@ findInLin {n = S r} ( q) ( m :: xs) = case decEq q m of
   Yes _ => xs
   No _ => ( m :: (findInLin {n = r} ( q) xs))
 findInLin ( a) (x :: xs) = xs 
+
+export
+maximumControls: (n:Nat) -> (1_ : Vect i Nat) -> List Nat
+maximumControls n [] = []
+maximumControls n (k::ks) = case isLTE n k of
+  Yes prf => k :: (maximumControls n ks)
+  No prf => (maximumControls n ks)
 
 {- UNUSED but could be used:
 

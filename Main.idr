@@ -68,16 +68,12 @@ export
 qftTestIo : IO ()
 qftTestIo = let
   un = qftTest
-  unAbs = qftAbsTest
   unCtrl = qftControlTest
   in
     do
       () <- putStrLn "Testing building of QFT over 4 qubits with UnitaryRun. Output in qftTest.py"
       d <- draw un
       eo <- exportToQiskit "qftTest.py" un
-      () <- putStrLn "Testing building of QFT(abstract implementation) over 4 qubits with UnitaryRun. Output in qftAbsTest.py"
-      d <- draw unAbs
-      eo <- exportToQiskit "qftAbsTest.py" unAbs
       () <- putStrLn "Testing building of controlled QFT(abstract implementation) over 4 qubits (3 plus control) with UnitaryRun. Output in qftControlTest.py"
       d <- draw unCtrl
       eo <- exportToQiskit "qftControlTest.py" unCtrl

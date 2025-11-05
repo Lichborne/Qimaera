@@ -28,6 +28,30 @@ exportUnitarySelf un ust = let op # lvect = runUStateT un ust in
                                       let () = discardq lvect in
                                         op
 
+||| Auxiliary function for applying a circuit to some qubits
+||| this has to recognize and handle the case where it is applied within an abstract control
+||| since this is the only was it can receive an lvect of qubits that contains an unexpected element, this is easy to handle 
+||| using decidability.
+private
+applyUnitary' : {n : Nat} -> {i : Nat} -> --let lvOut # vect = distributeDupedLVectVect lvIn in ( (apply ui u vect) ) # lvOut
+                (1 _ : LVect i Qubit) -> Unitary i -> (1 _ : Unitary n) -> (LPair (Unitary n) (LVect i Qubit))
+applyUnitary' {n} {i} lvIn ui (u) = let lvOut # vect = distributeDupedLVectVect lvIn in 
+   case decInj (n) vect of 
+            Yes prfYes => let unew = (UnitaryLinear.apply ui u vect {prf = prfYes}) in unew # (lvOut)
+            No prfNo => let applicable = clampUniqueWithCap n vect in -- this is only ever reached in the case of a control
+                                                                          -- operation which reduced the dimension of n
+                                                                          -- The operation of non-abstract-controlled operations
+                                                                          -- is correct without this, feel free to edit the code and check
+                        let un # _ = (applyOrErrorIO ui u (applicable)) in un # lvOut 
+            --In the no case, we have a controlled applicaiton where the control qubit is small, 
+            --so we index out. We can fix this by just providing the information that qubits are available
+            --to the controlled operation, while keeping the LVect intact. and then allowing
+            -- applyControlledAbs to use the LVect to correctly apply the controlled operation
+export
+applyUnitarySimulated : {n : Nat} -> {i : Nat} ->
+  (1 _ : LVect i Qubit) -> Unitary i -> UStateT (Unitary n) (Unitary n) (LVect i Qubit)
+applyUnitarySimulated lvect ui = MkUST (applyUnitary' lvect (ui))
+
 
 private
 applyControlSimulated': {n : Nat} -> {i : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (Unitary n) (Unitary n) (LVect i Qubit))->      
@@ -36,19 +60,22 @@ applyControlSimulated' {n} {i} q ust usn =
   let (q, k) = qubitToNatPair q in
     let un # lvOut = runUStateT (IdGate {n = n}) ust in
       let lvMid # vect = distributeDupedLVectVect lvOut in
-        let v = newVectOrderN (S n) vect in
-           let vn = findInLin k v in
-            case decInj (S n) (k :: vn) of 
-              Yes prfYes => let unew = (UnitaryLinear.apply (controlled un) usn (k :: vn ) {prf = prfYes}) in unew # (q :: lvMid)
-              No prfNo => let applicableSn = toVectN  $ makeNeutralVect (S n) in -- this is only ever reached in the case of a multiple-control
-                                                                          -- operation which reduced the dimension of n
-                                                                          -- The operation of non-abstract-controlled operations
-                                                                          -- is correct without this, feel free to edit the code and check
-                            let un # _ = (applyOrErrorIO (controlled un) usn (applicableSn)) in un # (q :: lvMid)
+        let checkIfControl = (length (maximumControls n vect)) in
+          case isGT checkIfControl 0 of 
+            No prfNo => let vn = findInLin k (makeNeutralVectN (S n)) in let un # _ = (applyOrErrorIO (controlled un) usn (k::vn)) in un # (q :: lvMid)
+            Yes prfYes => let v = makeNeutralVectN (S n) in let vn = findInLin k v in
+              case decInj (S n) (k :: vn) of 
+                Yes prfYes2 => let unew = (UnitaryLinear.apply (controlled un) usn (k :: vn ) {prf = prfYes2}) in unew # (q :: lvMid)
+                No prfNo2 => let vn = findInLin k (makeNeutralVectN (S n)) in
+                              let applicableSn = (k::vn) in -- this is only ever reached in the case of a multiple-control
+                                                                            -- operation which reduced the dimension of n
+                                                                            -- The operation of non-abstract-controlled operations
+                                                                            -- is correct without this, feel free to edit the code and check
+                              let un # _ = (applyOrErrorIO (controlled un) usn (applicableSn)) in un # (q :: lvMid)
             --In the no case, we have a controlled applicaiton inside a controlled application where the control qubit is small, 
             --so we index out. We can fix this by just providing the information that qubits are available
             --to the controlled operation, while keeping the LVect intact. and then allowing
-            --applyControlledAbs to use the LVect to correctly apply the controlled operation
+            --applyControlledAbs to use the LVect to correctly apply the controlled operation -}
 
 export
 applyControlAbsSimulated: {n : Nat} -> {i : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (Unitary n) (Unitary n) (LVect i Qubit))->      
@@ -95,16 +122,20 @@ applyControlledUSplitSim' q ust (usn)=
   let (q, k) = qubitToNatPair q in
     let un # (lvLeft # lvRight) = runUStateT (IdGate {n = n}) ust in
       let lvMid # vect = distributeDupedLVectVect (lvLeft ++ lvRight) in
-        let v = newVectOrderN (S n) vect in
-           let vn = findInLin k v in
-            case decInj (S n) (k :: vn) of 
-              Yes prfYes => let unew = (UnitaryLinear.apply (controlled un) usn (k :: vn) {prf = prfYes}) in 
-                              let lvOutL # lvOutR = splitLVinto i j lvMid in 
-                                unew # (q :: lvOutL # lvOutR)
-              No prfNo => let applicableSn = toVectN $ makeNeutralVect (S n) in --same as above
-                            let un # _ = (applyOrErrorIO (controlled un) usn (applicableSn)) in 
-                              let lvOutL # lvOutR = splitLVinto i j lvMid in 
-                                un # (q :: lvOutL # lvOutR) --same as for non split control
+        let lvOutL # lvOutR = splitLVinto i j lvMid in
+        let checkIfControl = (length (maximumControls n vect)) in
+          case isGT checkIfControl 0 of 
+            No prfNo => let vn = findInLin k (makeNeutralVectN (S n)) in let un # _ = (applyOrErrorIO (controlled un) usn (k::vn)) in un # (q :: lvOutL # lvOutR)
+            Yes prfYes => let v = makeNeutralVectN (S n) in
+              let vn = findInLin k v in
+                case decInj (S n) (k :: vn) of 
+                  Yes prfYes => let unew = (UnitaryLinear.apply (controlled un) usn (k :: vn) {prf = prfYes}) in 
+                                    unew # (q :: lvOutL # lvOutR)
+                  No prfNo => let vn = findInLin k (makeNeutralVectN (S n)) in
+                              let applicableSn = (k::vn) in  --same as above
+                                let un # _ = (applyOrErrorIO (controlled un) usn (applicableSn)) in 
+                                    un # (q :: lvOutL # lvOutR) --same as for non split control
+
 
 ||| Implementation of abstract controlled split application     
 applyControlledSimulatedSplit: {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (Unitary n) (Unitary n) (LPair (LVect i Qubit) (LVect j Qubit)))
@@ -139,37 +170,13 @@ applyParallelSimulated: {n : Nat} -> {i : Nat} -> {j : Nat} -> (1_ : UStateT (Un
 applyParallelSimulated ust1 ust2 = MkUST (applyParallelSimulated' ust1 ust2)
 
 
-||| Auxiliary function for applying a circuit to some qubits
-||| this has to recognize and handle the case where it is applied within an abstract control
-||| since this is the only was it can receive an lvect of qubits that contains an unexpected element, this is easy to handle 
-||| using decidability.
-private
-applyUnitary' : {n : Nat} -> {i : Nat} -> --let lvOut # vect = distributeDupedLVectVect lvIn in ( (apply ui u vect) ) # lvOut
-                (1 _ : LVect i Qubit) -> Unitary i -> (1 _ : Unitary n) -> (LPair (Unitary n) (LVect i Qubit))
-applyUnitary' {n} {i} lvIn ui (u) = let lvOut # vect = distributeDupedLVectVect lvIn in 
-   case decInj (n) vect of 
-            Yes prfYes => let unew = (UnitaryLinear.apply ui u vect {prf = prfYes}) in unew # (lvOut)
-            No prfNo => let applicable = toVectN  $ makeNeutralVect i in -- this is only ever reached in the case of a control
-                                                                          -- operation which reduced the dimension of n
-                                                                          -- The operation of non-abstract-controlled operations
-                                                                          -- is correct without this, feel free to edit the code and check
-                          let un # _ = (applyOrErrorIO ui u (applicable)) in un # lvOut 
-            --In the no case, we have a controlled applicaiton where the control qubit is small, 
-            --so we index out. We can fix this by just providing the information that qubits are available
-            --to the controlled operation, while keeping the LVect intact. and then allowing
-            -- applyControlledAbs to use the LVect to correctly apply the controlled operation
-export
-applyUnitarySimulated : {n : Nat} -> {i : Nat} ->
-  (1 _ : LVect i Qubit) -> Unitary i -> UStateT (Unitary n) (Unitary n) (LVect i Qubit)
-applyUnitarySimulated lvect ui = MkUST (applyUnitary' lvect (ui))
-
 private
 applyUnitaryOwn' : {n : Nat} -> {i : Nat} -> --let lvOut # vect = distributeDupedLVectVect lvIn in ( (apply ui u vect) ) # lvOut
                 (1 _ : LVect i Qubit) -> (1_ : Unitary i) -> (1 _ : Unitary n) -> (LPair (Unitary n) (LVect i Qubit))
 applyUnitaryOwn' lvIn ui (u) = let lvOut # vect = distributeDupedLVectVect lvIn in 
     case decInj (n) vect of 
               Yes prfYes => let unew = (UnitaryLinear.apply ui u vect {prf = prfYes}) in unew # (lvOut)
-              No prfNo => let applicable = toVectN  $ makeNeutralVect i in -- this is only ever reached in the case of a control
+              No prfNo => let applicable = clampUniqueWithCap n vect in -- this is only ever reached in the case of a control
                                                                             -- operation which reduced the dimension of n
                                                                             -- this can be tested by using UnitaryNoPrf
                                                                             -- which works without issue

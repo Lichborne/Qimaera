@@ -97,7 +97,7 @@ applyUnitary' {n} {i} lvIn ui (MkSimulatedOp qs un v counter)=
     let lvOut # vect = distributeDupedLVectVect lvIn in 
     case decInj (n) vect of 
               Yes prfYes => let unew = (UnitaryLinear.apply ui un vect {prf = prfYes}) in (MkSimulatedOp qs (unew) v counter) # (lvOut)
-              No prfNo => let applicable = toVectN  $ makeNeutralVect i in -- See UnitarySimulated about why and how this is needed
+              No prfNo => let applicable = clampUniqueWithCap n vect in -- See UnitarySimulated about why and how this is needed
                                                                            -- and works; tldr is that because controlled application reduces 
                                                                            -- the dimensions, we need to do this cleverly; this point
                                                                            -- in the cf is otherwise not reached
@@ -113,10 +113,16 @@ applyUnitarySimulated lvect ui = MkUST (applyUnitary' lvect (ui))
 private
 applyUnitaryOwn' : {n : Nat} -> {i : Nat} -> (1 _ : SimulatedOp i) -> (1 _ : LVect i Qubit) ->
    (1 _ : SimulatedOp n) -> (LPair (SimulatedOp n) (LVect i Qubit))
-applyUnitaryOwn' {n} {i} (MkSimulatedOp vacuousQS uis vacuousV vacuousC) lvIn (MkSimulatedOp qs un v counter) = 
-    let lvOut # vect = distributeDupedLVectVect lvIn in 
-      let unew # _ = applyOrErrorIO uis un (vect) in
-        do ((MkSimulatedOp qs unew v counter) # (lvOut))
+applyUnitaryOwn' {n} {i} (MkSimulatedOp vacuousQS ui vacuousV vacuousC) lvIn (MkSimulatedOp qs un v counter) = 
+ let lvOut # vect = distributeDupedLVectVect lvIn in 
+    case decInj (n) vect of 
+              Yes prfYes => let unew = (UnitaryLinear.apply ui un vect {prf = prfYes}) in (MkSimulatedOp qs (unew) v counter) # (lvOut)
+              No prfNo => let applicable = clampUniqueWithCap n vect in -- See UnitarySimulated about why and how this is needed
+                                                                           -- and works; tldr is that because controlled application reduces 
+                                                                           -- the dimensions, we need to do this cleverly; this point
+                                                                           -- in the cf is otherwise not reached
+                          let unew # _ = (applyOrErrorIO ui un (applicable)) in (MkSimulatedOp qs (unew) v counter) # lvOut 
+  
 
 ||| SimulatedOp implementation of applyUnitaryOwn (using self-defined datatype for unitaries)
 export
@@ -177,12 +183,14 @@ applyControlSimulated' {n} q ust (MkSimulatedOp qsn usn vsn csn)=
     let vn = findInLinQ q vsn in
       let (MkSimulatedOp dummyqs un vn dummyc) # lvOut = runUStateT (MkSimulatedOp (neutralIdPow n) (IdGate {n = n}) vn n) ust in
         let lvMid # vect = distributeDupedLVectVect lvOut in
-          let v = newVectOrderN (S n) vect in
-            let vn = findInLin k v in
+          let checkIfControl = (length (maximumControls n vect)) in
+          case isGT checkIfControl 0 of 
+            No prfNo => let vn = findInLin k (makeNeutralVectN (S n)) in let unew # _ = (applyOrErrorIO (controlled un) usn (k::vn)) in (MkSimulatedOp qsn unew vsn csn) # (q :: lvMid)
+            Yes prfYes => let v = makeNeutralVectN (S n) in let vn = findInLin k v in
                 case decInj (S n) (k :: vn) of  -- see above for reasoning
                 Yes prfYes => let unew = (UnitaryLinear.apply (controlled un) usn (k :: vn ) {prf = prfYes}) in 
                                 (MkSimulatedOp qsn unew vsn csn) # (q :: lvMid)
-                No prfNo => let applicableSn = toVectN  $ makeNeutralVect (S n) in 
+                No prfNo => let applicableSn = makeNeutralVectN (S n) in 
                                 let unew # _ = (applyOrErrorIO (controlled un) usn (applicableSn)) in 
                                     (MkSimulatedOp qsn unew vsn csn) # (q :: lvMid)
   
@@ -226,15 +234,17 @@ applyControlledUSplitSim' q ust (MkSimulatedOp qsn usn vsn csn)=
     let vn = findInLinQ q vsn in
       let (MkSimulatedOp dummyqs un vn dummyc) # (lvLeft # lvRight) = runUStateT (MkSimulatedOp (neutralIdPow n) (IdGate {n = n}) vn n) ust in
         let lvMid # vect = distributeDupedLVectVect (lvLeft ++ lvRight) in
-          let v = newVectOrderN (S n) vect in
-            let vn = findInLin k v in
+          let lvOutL # lvOutR = splitLVinto i j lvMid in
+            let checkIfControl = (length (maximumControls n vect)) in
+          case isGT checkIfControl 0 of 
+            No prfNo => let vn = findInLin k (makeNeutralVectN (S n)) in let unew # _ = (applyOrErrorIO (controlled un) usn (k::vn)) in (MkSimulatedOp qsn unew vsn csn)  # (q :: lvOutL # lvOutR)
+            Yes prfYes => let v = makeNeutralVectN (S n) in
+              let vn = findInLin k v in
                 case decInj (S n) (k :: vn) of 
                 Yes prfYes => let unew = (UnitaryLinear.apply (controlled un) usn (k :: vn) {prf = prfYes}) in 
-                                let lvOutL # lvOutR = splitLVinto i j lvMid in 
                                     (MkSimulatedOp qsn unew vsn csn) # (q :: lvOutL # lvOutR)
-                No prfNo => let applicableSn = toVectN $ makeNeutralVect (S n) in --same as above
+                No prfNo => let applicableSn = makeNeutralVectN (S n) in --same as above
                                 let unew # _ = (applyOrErrorIO (controlled un) usn (applicableSn)) in 
-                                let lvOutL # lvOutR = splitLVinto i j lvMid in 
                                     (MkSimulatedOp qsn unew vsn csn) # (q :: lvOutL # lvOutR) --same as for non split control
 
 
@@ -267,15 +277,9 @@ runNeutral : UnitaryOp t =>  {n : Nat} -> (1_ : UStateT (t n) (t n) (LVect n Qub
 ||| sequence over a given vector of qubits in (t n) used for only constructing unitaries
 runNeutralAt : UnitaryOp t =>  {n : Nat} -> (1 _ : LVect n Qubit) -> (1_ : UStateT (t n) (t n) (LVect n Qubit) ) -> (LPair (t n) (LVect n Qubit))
 
-neutralOp' : UnitaryOp t => {n:Nat} -> SimulatedOp n
-neutralOp' {n} = (MkSimulatedOp (neutralIdPow n) (IdGate {n = n}) (makeNeutralVect n) n)
-
 neutralWithQubits' : UnitaryOp t => {n : Nat} -> (1 _ : LVect n Qubit) -> LPair (SimulatedOp n) (LVect n Qubit) 
 neutralWithQubits' {n} lvect = let lvOut # v = distributeDupedLVectVect lvect in 
   (MkSimulatedOp (neutralIdPow n) (IdGate {n = n}) (fromVectN v) n) # lvOut
-
-runNeutral' :  UnitaryOp t => {n : Nat} -> (1 _ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect n Qubit) ) -> LPair (SimulatedOp n) (LVect n Qubit)
-runNeutral' {n} ust = runUStateT (MkSimulatedOp (neutralIdPow n) (IdGate {n = n}) (makeNeutralVect n) n) ust
 
 public export
 runNeutralAt' :  UnitaryOp t => {n : Nat} -> (1 _ : LVect n Qubit) -> (1 _ : UStateT (SimulatedOp n) (SimulatedOp n) (LVect n Qubit) ) -> LPair (SimulatedOp n) (LVect n Qubit)

@@ -305,25 +305,17 @@ cccnot = controlled $ controlled $ controlled (CNOT 0 1 (IdGate {n = 2})) --(H 0
 export
 qftTest : (Unitary 4)
 qftTest = runUnitaryOp (do
-  qs <- supplyQubits 4
-  out <- applyUStateT (qftU {i = 4} {n = 4} qs)
+  q <- supplyQubits 4
+  out <- applyUStateT (qftU {i = 4} {n = 4} q)
   pure out)
-
-|||  use of abstract version
-export
-qftAbsTest : (Unitary 4)
-qftAbsTest = runUnitaryOp (do
-  qs <- supplyQubits 4
-  out <- applyUStateT (qftUAbs {i = 4} {n = 4} qs)
-  pure out) 
-
+  
 ||| controlled QFT
 export
 qftControlTest : (Unitary 4)
 qftControlTest = runUnitaryOp (do
   [c] <- supplyQubits 1
   [q1,q2,q3]<- supplyQubits 3
-  out <- applyUStateT ((applyControlledAbs q1 (qftUAbs {i = 3} {n = 3} [c,q2,q3])))
+  out <- applyUStateT ((applyControlledAbs q1 (qftU {i = 3} {n = 3} [c,q2,q3])))
   pure out)
 
 --------------------Example with inPlaceModularAdder using BinarySimulatedOp and UnitaryRun -------------------------- 

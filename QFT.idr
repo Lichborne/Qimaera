@@ -42,7 +42,6 @@ RmOwn m q = do
 cRmAbs : UnitaryOp t => {n:Nat} -> Nat -> (1_: Qubit) -> (1_: Qubit) -> UStateT (t n) (t n) (LVect 2 Qubit)
 cRmAbs {n = Z} m c u = pure [c, u] -- this is if t n is empty, which cannot be the case if we have two qubits
 cRmAbs {n = S k} m c u = do 
-                --c # [u] <- makeSafeForAbstractControl c [u]
                 cu <- applyControlledAbs c (RmOwn {n = k} m u)
                 pure cu
 

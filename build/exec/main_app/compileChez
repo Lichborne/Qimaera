@@ -1,1 +1,1 @@
-(parameterize ([optimize-level 3] [compile-file-message #f]) (compile-program "/Users/bmf21/Documents/GitHub/Qimaera/build/exec/main_app/main.ss"))
+(parameterize ([optimize-level 3] [compile-file-message #f]) (compile-program "/Users/bmf21/Documents/Qimaera/build/exec/main_app/main.ss"))

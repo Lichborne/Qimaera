@@ -246,7 +246,7 @@ applyUnitarySimulatedCirc' lvIn ui (MkBinarySimulatedOp un v counter str)=
   let lvOut # vect = distributeDupedLVectVect lvIn in 
     case decInj (n) vect of 
               Yes prfYes => let unew = (UnitaryLinear.apply ui un vect {prf = prfYes}) in (MkBinarySimulatedOp (unew) v counter str) # lvOut 
-              No prfNo => let applicable = toVectN  $ makeNeutralVect i in -- See UnitarySimulated about why and how this is needed
+              No prfNo => let applicable = clampUniqueWithCap n vect in -- See UnitarySimulated about why and how this is needed
                                                                            -- and works; tldr is that because controlled application reduces 
                                                                            -- the dimensions, we need to do this cleverly; this point
                                                                            -- in the cf is otherwise not reached
@@ -262,10 +262,16 @@ applyUnitarySimulatedCirc lvect ui = MkUST (applyUnitarySimulatedCirc' lvect (ui
 private
 applyUnitaryOwnCirc' : {n : Nat} -> {i : Nat} -> (1 _ : BinarySimulatedOp i) -> (1 _ : LVect i Qubit) ->
    (1 _ : BinarySimulatedOp n) -> (LPair (BinarySimulatedOp n) (LVect i Qubit))
-applyUnitaryOwnCirc' {n} {i} (MkBinarySimulatedOp uis vacuousV vacuousC vacuousStr) lvIn (MkBinarySimulatedOp un v counter str) = 
-    let lvOut # vect = distributeDupedLVectVect lvIn in 
-      let unew # _ = applyOrErrorIO uis un (vect) in
-        do ((MkBinarySimulatedOp unew v counter str) # (lvOut))
+applyUnitaryOwnCirc' {n} {i} (MkBinarySimulatedOp ui vacuousV vacuousC vacuousStr) lvIn (MkBinarySimulatedOp un v counter str) = 
+      let lvOut # vect = distributeDupedLVectVect lvIn in 
+    case decInj (n) vect of 
+              Yes prfYes => let unew = (UnitaryLinear.apply ui un vect {prf = prfYes}) in (MkBinarySimulatedOp (unew) v counter str) # lvOut 
+              No prfNo => let applicable = clampUniqueWithCap n vect in -- See UnitarySimulated about why and how this is needed
+                                                                           -- and works; tldr is that because controlled application reduces 
+                                                                           -- the dimensions, we need to do this cleverly; this point
+                                                                           -- in the cf is otherwise not reached
+                            let unew # _ = (applyOrErrorIO ui un (applicable)) in (MkBinarySimulatedOp (unew) v counter str) # lvOut 
+    
 
 ||| BinarySimulatedOp implementatstrn of applyUnitaryOwn (using self-defined datatype for unitaries)
 export
@@ -325,12 +331,15 @@ applyControlSimulated' {n} q ust (MkBinarySimulatedOp usn vsn csn str)=
     let vn = findInLinQ q vsn in
       let (MkBinarySimulatedOp un vn dummyc summystr) # lvOut = runUStateT (MkBinarySimulatedOp  (IdGate {n = n}) vn n str) ust in
         let lvMid # vect = distributeDupedLVectVect lvOut in
-          let v = newVectOrderN (S n) vect in
-            let vn = findInLin k v in
+          let checkIfControl = (length (maximumControls n vect)) in
+          case isGT checkIfControl 0 of 
+            No prfNo => let vn = findInLin k (makeNeutralVectN (S n)) in let unew # _ = (applyOrErrorIO (controlled un) usn (k::vn)) in 
+                        (MkBinarySimulatedOp unew vsn csn str) # (q :: lvMid)
+            Yes prfYes => let v = makeNeutralVectN (S n) in let vn = findInLin k v in
                 case decInj (S n) (k :: vn) of  -- see above for reasoning
                 Yes prfYes => let unew = (UnitaryLinear.apply (controlled un) usn (k :: vn ) {prf = prfYes}) in 
                                 (MkBinarySimulatedOp unew vsn csn str) # (q :: lvMid)
-                No prfNo => let applicableSn = toVectN  $ makeNeutralVect (S n) in 
+                No prfNo => let applicableSn = makeNeutralVectN (S n) in 
                                 let unew # _ = (applyOrErrorIO (controlled un) usn (applicableSn)) in 
                                     (MkBinarySimulatedOp unew vsn csn str)# (q :: lvMid)
 
@@ -372,15 +381,18 @@ applyControlledUSplitSim' q ust (MkBinarySimulatedOp usn vsn csn str)=
     let vn = findInLinQ q vsn in
       let (MkBinarySimulatedOp un vn dummyc dummystr) # (lvLeft # lvRight) = runUStateT (MkBinarySimulatedOp  (IdGate {n = n}) vn n str) ust in
         let lvMid # vect = distributeDupedLVectVect (lvLeft ++ lvRight) in
-          let v = newVectOrderN (S n) vect in
-            let vn = findInLin k v in
+          let lvOutL # lvOutR = splitLVinto i j lvMid in
+          let checkIfControl = (length (maximumControls n vect)) in
+          case isGT checkIfControl 0 of 
+            No prfNo => let vn = findInLin k (makeNeutralVectN (S n)) in let unew # _ = (applyOrErrorIO (controlled un) usn (k::vn)) in 
+                        (MkBinarySimulatedOp unew vsn csn str) # (q :: lvOutL # lvOutR)
+            Yes prfYes => let v = makeNeutralVectN (S n) in
+              let vn = findInLin k v in
                 case decInj (S n) (k :: vn) of --see above for reasoning
                 Yes prfYes => let unew = (UnitaryLinear.apply (controlled un) usn (k :: vn) {prf = prfYes}) in 
-                                let lvOutL # lvOutR = splitLVinto i j lvMid in 
                                    (MkBinarySimulatedOp unew vsn csn str) # (q :: lvOutL # lvOutR)
-                No prfNo => let applicableSn = toVectN $ makeNeutralVect (S n) in 
+                No prfNo => let applicableSn = makeNeutralVectN (S n) in 
                                 let unew # _ = (applyOrErrorIO (controlled un) usn (applicableSn)) in 
-                                let lvOutL # lvOutR = splitLVinto i j lvMid in 
                                     (MkBinarySimulatedOp unew vsn csn str)# (q :: lvOutL # lvOutR) 
 
 ||| Implementatstrn of abstract controlled split applicatstrn     

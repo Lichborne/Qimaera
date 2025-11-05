@@ -15,10 +15,14 @@ import UnitarySimulated
 
 ------------------------Quantum Modular Exponentiation------------------------
 
-||| This file contains two implementations of QME
+||| This file contains the implementation of QME
+||| The first few functions are defined using two approaches, 
+||| with the alternate version found at the bottom.
 ||| One, where the computationally most relevant set of qubits
 ||| for a given function is separated out throughout the implementation,
-||| and one where everyting is done as usual
+||| and one where everyting is done as usual. This is to be able to
+||| compare if the former works as intended. The final implementation is given using this.
+
 
 
 --------------- CLASSICAL modular inverse when we know gcd = 1 ---------------
@@ -80,56 +84,6 @@ inPlaceQFTAdder (a :: as) (b::bs) = do --pattern matchign requires that the lvec
     addAs # addBs <- addWithQFT (a :: as) qftbs
     unqftbs <- (qftUInv (addBs))
     pure $ addAs # unqftbs
-
--------------- Alternate version, with one input vector -------------------
-
-addWithQFTHelp2 : UnitaryOp t => {k : Nat} -> {n: Nat} -> (1_ : LVect k Qubit) 
-                                    -> (1_ : Qubit) -> (m : Nat) -> UStateT (t n) (t n) ((LVect (S k) Qubit))
-addWithQFTHelp2 LinearTypes.Nil b _ = pure $ [b]
-addWithQFTHelp2 (a::as) b m = do
-    [a,b] <- applyUnitary [a,b] (cRm m) 
-    b::as <- addWithQFTHelp2 as b (S m)
-    pure $ (b::a::as)
-
-addWithQFT2: UnitaryOp t => {i: Nat} -> {n : Nat} -> (1_ : LVect i Qubit) -> (1_ : LVect (S i) Qubit) -> UStateT (t n) (t n) ((LVect  (i + S i)  Qubit))
-addWithQFT2 [] b = pure $ b
-addWithQFT2 a [] impossible
-addWithQFT2 {i = S k} (a :: as) (b::bs) = do
-   (b::a::as) <-  addWithQFTHelp2 (a :: as) b 1
-   asbs <-  addWithQFT2 as bs   
-   as # bs <- splitQubitsInto k (S k) asbs --{prf =lteSiPlusi {i = k}} (k) (rewrite plusSuccRightSucc k k in asbs)
-   pure $ (++) (a :: as) (b::bs)    
-
-export
-inPlaceQFTAdder2 : UnitaryOp t => {i: Nat} -> {n : Nat} -> (1_ : LVect i Qubit) -> (1_ : LVect (S i) Qubit) -> UStateT (t n) (t n) ((LVect (i + S i) Qubit))
-inPlaceQFTAdder2 [] b = pure $ b
-inPlaceQFTAdder2 a [] impossible
-inPlaceQFTAdder2 {i = S k} (a :: as) (b::bs) = do --pattern matchign requires that the lvects be of this form for some reason - idris can be strange
-    qftbs <- (qftU (b::bs))
-    all <- addWithQFT2 (a :: as) qftbs
-    addAs # addBs <- splitQubitsInto (S k) (S (S k)) all --{prf =lteSkS {k = k}} (S k) all
-    unqftbs <- (qftUInv (addBs))
-    pure $ (++) addAs unqftbs    
-
-export
-inPlaceQFTAdderUnified : UnitaryOp t => {i: Nat} -> {n : Nat} -> (1_ : LVect (i + S i) Qubit) -> UStateT (t n) (t n) ((LVect (i + S i) Qubit))
-inPlaceQFTAdderUnified {i = Z} [b] = pure $ [b] -- since the form of the lvect is i + S i, it is at least one
-inPlaceQFTAdderUnified {i = S k} (a::asbbs) = do --pattern matchign requires that the lvects be of this form for some reason - idris can be strange
-    as # bs <- splitQubitsInto (S k) (S (S k)) (a::asbbs)
-    qftbs <- (qftU (bs))
-    all <- addWithQFT2 (as) qftbs
-    addAs # addBs <- splitQubitsInto (S k) (S (S k)) all --{prf =lteSkS {k = k}} (S k) all
-    unqftbs <- (qftUInv (addBs))
-    pure $ (++) addAs unqftbs  
-
-export
-inPlaceQFTAdderConcat  : UnitaryOp t => {i: Nat} -> {n : Nat} -> (1_ : LVect i Qubit) -> (1_ : LVect (S i) Qubit) 
-                                        -> UStateT (t n) (t n) (LVect (i + S i) Qubit)    
-inPlaceQFTAdderConcat [] b = pure b
-inPlaceQFTAdderConcat a [] impossible
-inPlaceQFTAdderConcat (a :: as) (b::bs) = do --pattern matching requires that the lvects be of this form for some reason - idris can be strange
-    addAs # unqftbs <- inPlaceQFTAdder (a :: as) (b::bs)
-    pure (LinearTypes.(++) addAs unqftbs)
 
     
 ------------------INVERSE ADDER------------------
@@ -198,41 +152,6 @@ inPlaceModularAdder [c1,c2] [ancilla] (a::as) bigNs (b::bs) = do
     aAndN <- reCombine as bigNs
     pure $ ((++) (c1::c2::[ancilla]) aAndN) # (bs)
 
----------------IN-PLACE MODULAR ADDER (One Output) ---------------  
-||| Alternate version that was used for checking whether split computation
-||| parses correctly for complicated operations. It is far easier to 
-||| do the rest by keeping some qubit lists sepatate in the output,
-||| so since this was alright, only split implementations are given for the rest
-
-inPlaceModularAdderUnified : UnitaryOp t => {i: Nat} -> {n : Nat} 
-                                -> (1 controls : LVect 2 Qubit) -- these are the controls c1 and c2
-                                -> (1 ancilla : LVect 1 Qubit) -- this is the additional ancilla
-                                -> (1 a : LVect i Qubit) -- this is a represented in i Qubits
-                                -> (1 bigN : LVect i Qubit) -- this is N represented in i Qubits
-                                -> (1 b : LVect (S i) Qubit) -- this is b plus the required additional qubit as the last qubit
-                                -> UStateT (t (S (S n))) (t (S (S n))) ((LVect (3 + i + S i + i) Qubit)) -- we collect the 2 controls, ancilla, a, and N in the same output LVect, and b in the other
-
-inPlaceModularAdderUnified [c1,c2] [ancilla] [] [] [q] = pure $ (c1::c2::q::[ancilla])
-inPlaceModularAdderUnified {i = S k} [c1,c2] [ancilla] (a::as) bigNs (b::bs) = do
-    (c1::c2::asbs) <- (applyControlledAbs c1 (applyControlledAbs c2 (inPlaceQFTAdder2 (a::as) (b::bs))))
-    as # bs <- splitQubitsInto (S k) (S (S k)) asbs
-    bigNsbs <-  adjointUST (inPlaceQFTAdder2 bigNs (bs))
-    bigNs # bs <- splitQubitsInto (S k) (S (S k)) bigNsbs
-    (s::qibs) <- (qftUInv (bs)) -- the most signigifact bit in out case will be the first, which is where the overflow goes, so this is our control
-    [s,ancilla] <- applyCNOT s ancilla
-    qftbs <- (qftUInv (s::qibs))
-    ancilla::bigNsbs <- applyControlledAbs ancilla  (adjointUST (inPlaceQFTAdder2 bigNs qftbs))
-    bigNs # bs <- splitQubitsInto (S k) (S (S k)) bigNsbs
-    (c1::c2::asbs) <- applyControlledAbs c1 (applyControlledAbs c2 (adjointUST (inPlaceQFTAdder2 as bs)))
-    as # bs <- splitQubitsInto (S k) (S (S k)) asbs
-    (s::qibs) <- (qftUInv (bs))
-    [s] <- applyUnitary [s] XGate
-    [s,ancilla] <- applyCNOT s ancilla
-    [s] <- applyUnitary [s] XGate
-    qftbs <- (qftU (s::qibs))
-    (c1::c2::asbs) <-  applyControlledAbs c1 (applyControlledAbs c2 (inPlaceQFTAdder2 (as) (qftbs)))
-    aAndN <- reCombine asbs bigNs
-    pure $ ((++) (c1::c2::[ancilla]) aAndN)
 
 ---------------IN-PLACE MODULAR MULTIPLIER---------------
 
@@ -448,3 +367,93 @@ modularTest = runUnitaryOp (do
         nils <- supplyQubits 4
         out <-  applyUStateTSplit (inPlaceModularExponentiation c ancilla (xs) (ans) (asnmodinv) (bigNs) (nils))
         pure out)    
+
+
+        
+
+-------------- Alternate version, with one input vector -------------------
+
+addWithQFTHelp2 : UnitaryOp t => {k : Nat} -> {n: Nat} -> (1_ : LVect k Qubit) 
+                                    -> (1_ : Qubit) -> (m : Nat) -> UStateT (t n) (t n) ((LVect (S k) Qubit))
+addWithQFTHelp2 LinearTypes.Nil b _ = pure $ [b]
+addWithQFTHelp2 (a::as) b m = do
+    [a,b] <- applyUnitary [a,b] (cRm m) 
+    b::as <- addWithQFTHelp2 as b (S m)
+    pure $ (b::a::as)
+
+addWithQFT2: UnitaryOp t => {i: Nat} -> {n : Nat} -> (1_ : LVect i Qubit) -> (1_ : LVect (S i) Qubit) -> UStateT (t n) (t n) ((LVect  (i + S i)  Qubit))
+addWithQFT2 [] b = pure $ b
+addWithQFT2 a [] impossible
+addWithQFT2 {i = S k} (a :: as) (b::bs) = do
+   (b::a::as) <-  addWithQFTHelp2 (a :: as) b 1
+   asbs <-  addWithQFT2 as bs   
+   as # bs <- splitQubitsInto k (S k) asbs --{prf =lteSiPlusi {i = k}} (k) (rewrite plusSuccRightSucc k k in asbs)
+   pure $ (++) (a :: as) (b::bs)    
+
+export
+inPlaceQFTAdder2 : UnitaryOp t => {i: Nat} -> {n : Nat} -> (1_ : LVect i Qubit) -> (1_ : LVect (S i) Qubit) -> UStateT (t n) (t n) ((LVect (i + S i) Qubit))
+inPlaceQFTAdder2 [] b = pure $ b
+inPlaceQFTAdder2 a [] impossible
+inPlaceQFTAdder2 {i = S k} (a :: as) (b::bs) = do --pattern matchign requires that the lvects be of this form for some reason - idris can be strange
+    qftbs <- (qftU (b::bs))
+    all <- addWithQFT2 (a :: as) qftbs
+    addAs # addBs <- splitQubitsInto (S k) (S (S k)) all --{prf =lteSkS {k = k}} (S k) all
+    unqftbs <- (qftUInv (addBs))
+    pure $ (++) addAs unqftbs    
+
+export
+inPlaceQFTAdderUnified : UnitaryOp t => {i: Nat} -> {n : Nat} -> (1_ : LVect (i + S i) Qubit) -> UStateT (t n) (t n) ((LVect (i + S i) Qubit))
+inPlaceQFTAdderUnified {i = Z} [b] = pure $ [b] -- since the form of the lvect is i + S i, it is at least one
+inPlaceQFTAdderUnified {i = S k} (a::asbbs) = do --pattern matchign requires that the lvects be of this form for some reason - idris can be strange
+    as # bs <- splitQubitsInto (S k) (S (S k)) (a::asbbs)
+    qftbs <- (qftU (bs))
+    all <- addWithQFT2 (as) qftbs
+    addAs # addBs <- splitQubitsInto (S k) (S (S k)) all --{prf =lteSkS {k = k}} (S k) all
+    unqftbs <- (qftUInv (addBs))
+    pure $ (++) addAs unqftbs  
+
+export
+inPlaceQFTAdderConcat  : UnitaryOp t => {i: Nat} -> {n : Nat} -> (1_ : LVect i Qubit) -> (1_ : LVect (S i) Qubit) 
+                                        -> UStateT (t n) (t n) (LVect (i + S i) Qubit)    
+inPlaceQFTAdderConcat [] b = pure b
+inPlaceQFTAdderConcat a [] impossible
+inPlaceQFTAdderConcat (a :: as) (b::bs) = do --pattern matching requires that the lvects be of this form for some reason - idris can be strange
+    addAs # unqftbs <- inPlaceQFTAdder (a :: as) (b::bs)
+    pure (LinearTypes.(++) addAs unqftbs)
+
+
+---------------IN-PLACE MODULAR ADDER (One Output) ---------------  
+||| Alternate version that was used for checking whether split computation
+||| parses correctly for complicated operations. It is far easier to 
+||| do the rest by keeping some qubit lists sepatate in the output,
+||| so since this was alright, only split implementations are given for the rest
+
+inPlaceModularAdderUnified : UnitaryOp t => {i: Nat} -> {n : Nat} 
+                                -> (1 controls : LVect 2 Qubit) -- these are the controls c1 and c2
+                                -> (1 ancilla : LVect 1 Qubit) -- this is the additional ancilla
+                                -> (1 a : LVect i Qubit) -- this is a represented in i Qubits
+                                -> (1 bigN : LVect i Qubit) -- this is N represented in i Qubits
+                                -> (1 b : LVect (S i) Qubit) -- this is b plus the required additional qubit as the last qubit
+                                -> UStateT (t (S (S n))) (t (S (S n))) ((LVect (3 + i + S i + i) Qubit)) -- we collect the 2 controls, ancilla, a, and N in the same output LVect, and b in the other
+
+inPlaceModularAdderUnified [c1,c2] [ancilla] [] [] [q] = pure $ (c1::c2::q::[ancilla])
+inPlaceModularAdderUnified {i = S k} [c1,c2] [ancilla] (a::as) bigNs (b::bs) = do
+    (c1::c2::asbs) <- (applyControlledAbs c1 (applyControlledAbs c2 (inPlaceQFTAdder2 (a::as) (b::bs))))
+    as # bs <- splitQubitsInto (S k) (S (S k)) asbs
+    bigNsbs <-  adjointUST (inPlaceQFTAdder2 bigNs (bs))
+    bigNs # bs <- splitQubitsInto (S k) (S (S k)) bigNsbs
+    (s::qibs) <- (qftUInv (bs)) -- the most signigifact bit in out case will be the first, which is where the overflow goes, so this is our control
+    [s,ancilla] <- applyCNOT s ancilla
+    qftbs <- (qftUInv (s::qibs))
+    ancilla::bigNsbs <- applyControlledAbs ancilla  (adjointUST (inPlaceQFTAdder2 bigNs qftbs))
+    bigNs # bs <- splitQubitsInto (S k) (S (S k)) bigNsbs
+    (c1::c2::asbs) <- applyControlledAbs c1 (applyControlledAbs c2 (adjointUST (inPlaceQFTAdder2 as bs)))
+    as # bs <- splitQubitsInto (S k) (S (S k)) asbs
+    (s::qibs) <- (qftUInv (bs))
+    [s] <- applyUnitary [s] XGate
+    [s,ancilla] <- applyCNOT s ancilla
+    [s] <- applyUnitary [s] XGate
+    qftbs <- (qftU (s::qibs))
+    (c1::c2::asbs) <-  applyControlledAbs c1 (applyControlledAbs c2 (inPlaceQFTAdder2 (as) (qftbs)))
+    aAndN <- reCombine asbs bigNs
+    pure $ ((++) (c1::c2::[ancilla]) aAndN)
