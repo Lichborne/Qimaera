@@ -6,14 +6,12 @@ import Decidable.Equality
 import Injection
 import QuantumOp
 import LinearTypes
---import UnitaryOp
 import UStateT
 import QStateT
 import UnitaryLinear
-
 import QFT
 import Lemmas
---import NatRules
+import UnitarySimulated
 
 ------------------------Quantum Modular Exponentiation------------------------
 
@@ -435,3 +433,18 @@ modularExponentiationOp {t = t} c i n x a bigN = let
                                                 output <- applyUST (reCombineAbs $ inPlaceModularExponentiation c [ancilla] xs asn asmodinv bigNs bsZeros)
                                                 pure (output)
                                                       
+-------------------- Unitary part of QME test --------------------------
+
+||| testing just the unitary part of modular exponentiation
+export
+modularTest : (Unitary 18)
+modularTest = runUnitaryOp (do
+        c <- supplyQubits 1--- recall that UnitaryOp can only ever get qubits from quantumOp, so we dont have to worry about whether the qubits will be distinct
+        ancilla <- supplyQubits 1
+        ans <- supplyQubits 3
+        xs <- supplyQubits 3
+        asnmodinv <- supplyQubits 3
+        bigNs <- supplyQubits 3
+        nils <- supplyQubits 4
+        out <-  applyUStateTSplit (inPlaceModularExponentiation c ancilla (xs) (ans) (asnmodinv) (bigNs) (nils))
+        pure out)    
