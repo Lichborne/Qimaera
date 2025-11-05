@@ -94,8 +94,14 @@ failedIoOp {n} v un ui = do
 applyUnitary' : {n : Nat} -> {i : Nat} -> --let lvOut # vect = distributeDupedLVectVect lvIn in ( MkUnitary (apply ui u vect) ) # lvOut
                 (1 _ : LVect i Qubit) -> Unitary i -> (1 _ : SimulatedOp n) -> (LPair (SimulatedOp n) (LVect i Qubit))
 applyUnitary' {n} {i} lvIn ui (MkSimulatedOp qs un v counter)= 
-  let lvOut # vect = distributeDupedLVectVect lvIn in 
-    let unew # _ = (applyOrErrorIO (ui) un vect) in (MkSimulatedOp qs (unew) v counter) # lvOut
+    let lvOut # vect = distributeDupedLVectVect lvIn in 
+    case decInj (n) vect of 
+              Yes prfYes => let unew = (UnitaryLinear.apply ui un vect {prf = prfYes}) in (MkSimulatedOp qs (unew) v counter) # (lvOut)
+              No prfNo => let applicable = toVectN  $ makeNeutralVect i in -- See UnitarySimulated about why and how this is needed
+                                                                           -- and works; tldr is that because controlled application reduces 
+                                                                           -- the dimensions, we need to do this cleverly; this point
+                                                                           -- in the cf is otherwise not reached
+                            let unew # _ = (applyOrErrorIO ui un (applicable)) in (MkSimulatedOp qs (unew) v counter) # lvOut 
   
 
 ||| SimulatedOp implementation of applyUnitary
@@ -170,8 +176,15 @@ applyControlSimulated' {n} q ust (MkSimulatedOp qsn usn vsn csn)=
   let (q, k) = qubitToNatPair q in
     let vn = findInLinQ q vsn in
       let (MkSimulatedOp dummyqs un vn dummyc) # lvOut = runUStateT (MkSimulatedOp (neutralIdPow n) (IdGate {n = n}) vn n) ust in
-        let unew # _ =  applyOrErrorIO (controlled un) usn (k :: (toVectN vn)) in
-          do (MkSimulatedOp qsn unew vsn csn) # (q :: lvOut)
+        let lvMid # vect = distributeDupedLVectVect lvOut in
+          let v = newVectOrderN (S n) vect in
+            let vn = findInLin k v in
+                case decInj (S n) (k :: vn) of  -- see above for reasoning
+                Yes prfYes => let unew = (UnitaryLinear.apply (controlled un) usn (k :: vn ) {prf = prfYes}) in 
+                                (MkSimulatedOp qsn unew vsn csn) # (q :: lvMid)
+                No prfNo => let applicableSn = toVectN  $ makeNeutralVect (S n) in 
+                                let unew # _ = (applyOrErrorIO (controlled un) usn (applicableSn)) in 
+                                    (MkSimulatedOp qsn unew vsn csn) # (q :: lvMid)
   
 
 export
@@ -211,9 +224,19 @@ applyControlledUSplitSim' : {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) -> 
 applyControlledUSplitSim' q ust (MkSimulatedOp qsn usn vsn csn)= 
   let (q, k) = qubitToNatPair q in
     let vn = findInLinQ q vsn in
-      let (MkSimulatedOp dummyqs un vn dummyc) # (lvLeft # lvRight)= runUStateT (MkSimulatedOp (neutralIdPow n) (IdGate {n = n}) vn n) ust in
-         let unew # _ = applyOrErrorIO (controlled un) usn (k :: (toVectN vn)) in
-            do (MkSimulatedOp qsn unew vsn csn) # ((q :: lvLeft) # lvRight)
+      let (MkSimulatedOp dummyqs un vn dummyc) # (lvLeft # lvRight) = runUStateT (MkSimulatedOp (neutralIdPow n) (IdGate {n = n}) vn n) ust in
+        let lvMid # vect = distributeDupedLVectVect (lvLeft ++ lvRight) in
+          let v = newVectOrderN (S n) vect in
+            let vn = findInLin k v in
+                case decInj (S n) (k :: vn) of 
+                Yes prfYes => let unew = (UnitaryLinear.apply (controlled un) usn (k :: vn) {prf = prfYes}) in 
+                                let lvOutL # lvOutR = splitLVinto i j lvMid in 
+                                    (MkSimulatedOp qsn unew vsn csn) # (q :: lvOutL # lvOutR)
+                No prfNo => let applicableSn = toVectN $ makeNeutralVect (S n) in --same as above
+                                let unew # _ = (applyOrErrorIO (controlled un) usn (applicableSn)) in 
+                                let lvOutL # lvOutR = splitLVinto i j lvMid in 
+                                    (MkSimulatedOp qsn unew vsn csn) # (q :: lvOutL # lvOutR) --same as for non split control
+
 
 ||| Implementation of abstract controlled split application     
 applyControlledSimulatedSplit: {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (SimulatedOp n) (SimulatedOp n) (LPair (LVect i Qubit) (LVect j Qubit)))

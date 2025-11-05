@@ -88,7 +88,15 @@ The UnitaryOp interface uses information about available qubits provided to it b
 
 Further, the `UnitaryRun` interface, which can be used to obtain an instance of the Unitary datatype out of UnitaryOp by simply supplying Qubits to it is also found in this file. Its use is straighforward based on QuantumOp and accompanying examples.
 
-We also provide a concrete implementation of these interfaces. In this file, SimulatedOp provides linear-algebraic simulation of all the required quantum operations for QuantumOp. Simulated Op's implementation of UnitaryOp is found in `SimulatedOp.idr`
+We also provide a concrete implementation of these interfaces. In this file, SimulatedOp provides linear-algebraic simulation of all the required quantum operations for QuantumOp. SimulatedOp's implementation of UnitaryOp is found in `SimulatedOp.idr`
+
+### **`SimulatedOp.idr`**
+
+Implements UnitaryOp using SimulatedOp. Unitary is used to collect the unitary bits, but linear algebra would work too (although it is very slow) for. both states and unitaries. Note that the counter has, in the new implementation, become vacuous, and therefore can be repurposed or removed.
+
+### **`BinarySimulatedOp.idr`**
+
+Implements UnitaryOp using BinarySimulatedOp, i.e. binary simulation of the quantum state. When an algorithm is run using this, the circuit, in cluding measurements, created is exported to a file with a name of the user's choosing. The implementation is split into (numbered) functions automatically, as well, for future visualization purposes. File outputs require Matplotlib package to run (last line of code, can be removed).
 
 ### **`Examples.idr`**
 

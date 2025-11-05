@@ -225,18 +225,8 @@ runSimulatedCircVis {n} s = LIO.run (do
 public export
 runSimulatedCircU : {i:Nat} -> (1_: BinarySimulatedOp n) -> (1 _ : UStateT (BinarySimulatedOp n) (BinarySimulatedOp n) (LVect i Qubit) ) -> LPair (BinarySimulatedOp n) (LVect i Qubit)
 runSimulatedCircU {i = i} simop ust = runUStateT simop ust
-{-}
-public export
-runUSimCirc : {i:Nat} ->  {n:Nat} -> (1 _ : QStateT (BinarySimulatedOp 0) (BinarySimulatedOp n) (LVect i Qubit) ) -> (BinarySimulatedOp n)
-runUSimCirc {n} qst = let simOut # lvect = runQStateT (MkBinarySimulatedOp IdGate [] 0 (baseStringVis n)) qst in
-                          let () = discardq in
-                            simOut
 
-public export                            
-exportU' : {i:Nat} -> {n:Nat} -> (1 _ : QStateT (BinarySimulatedOp n) (BinarySimulatedOp n) (LVect i Qubit) ) -> (Unitary n)
-exportU' {n} qst = let MkBinarySimulatedOp un vn couner str = runUSimCirc simop qst in
-                              un
--}
+||| Export a unitary out of BinarySim
 public export
 exportUnitary' : {i:Nat} -> (1_: BinarySimulatedOp n) -> (1 _ : UStateT (BinarySimulatedOp n) (BinarySimulatedOp n) (LVect i Qubit) ) -> Unitary n
 exportUnitary' {i = i} simop ust = let (MkBinarySimulatedOp un vn counter str) # lvect = runUStateT simop ust in
@@ -252,9 +242,16 @@ runSplitSimulatedCircU {i = i} simop ust = runUStateT simop ust
 ||| Helper for implementatstrn of  applyUnitary
 applyUnitarySimulatedCirc' : {n : Nat} -> {i : Nat} -> --let lvOut # vect = distributeDupedLVectVect lvIn in ( MkUnitary (apply ui u vect) ) # lvOut
                 (1 _ : LVect i Qubit) -> Unitary i -> (1 _ : BinarySimulatedOp n) -> (LPair (BinarySimulatedOp n) (LVect i Qubit))
-applyUnitarySimulatedCirc' lvIn ui (MkBinarySimulatedOp un v counter str)= let lvOut # vect = distributeDupedLVectVect lvIn in 
-  let unew # _ = (applyOrErrorIO ( ui) un vect) in 
-    (MkBinarySimulatedOp (unew) v counter str) # lvOut
+applyUnitarySimulatedCirc' lvIn ui (MkBinarySimulatedOp un v counter str)= 
+  let lvOut # vect = distributeDupedLVectVect lvIn in 
+    case decInj (n) vect of 
+              Yes prfYes => let unew = (UnitaryLinear.apply ui un vect {prf = prfYes}) in (MkBinarySimulatedOp (unew) v counter str) # lvOut 
+              No prfNo => let applicable = toVectN  $ makeNeutralVect i in -- See UnitarySimulated about why and how this is needed
+                                                                           -- and works; tldr is that because controlled application reduces 
+                                                                           -- the dimensions, we need to do this cleverly; this point
+                                                                           -- in the cf is otherwise not reached
+                            let unew # _ = (applyOrErrorIO ui un (applicable)) in (MkBinarySimulatedOp (unew) v counter str) # lvOut 
+    
 
 ||| BinarySimulatedOp implementatstrn of applyUnitary
 export
@@ -327,8 +324,15 @@ applyControlSimulated' {n} q ust (MkBinarySimulatedOp usn vsn csn str)=
   let (q, k) = qubitToNatPair q in
     let vn = findInLinQ q vsn in
       let (MkBinarySimulatedOp un vn dummyc summystr) # lvOut = runUStateT (MkBinarySimulatedOp  (IdGate {n = n}) vn n str) ust in
-        let unew # _ = applyOrErrorIO (controlled un) usn (k :: (toVectN vn)) in
-          (MkBinarySimulatedOp unew vsn csn str) # (q :: lvOut)
+        let lvMid # vect = distributeDupedLVectVect lvOut in
+          let v = newVectOrderN (S n) vect in
+            let vn = findInLin k v in
+                case decInj (S n) (k :: vn) of  -- see above for reasoning
+                Yes prfYes => let unew = (UnitaryLinear.apply (controlled un) usn (k :: vn ) {prf = prfYes}) in 
+                                (MkBinarySimulatedOp unew vsn csn str) # (q :: lvMid)
+                No prfNo => let applicableSn = toVectN  $ makeNeutralVect (S n) in 
+                                let unew # _ = (applyOrErrorIO (controlled un) usn (applicableSn)) in 
+                                    (MkBinarySimulatedOp unew vsn csn str)# (q :: lvMid)
 
 export
 applyControlAbsSimulatedCirc: {n : Nat} -> {i : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (BinarySimulatedOp n) (BinarySimulatedOp n) (LVect i Qubit))->      
@@ -366,9 +370,18 @@ applyControlledUSplitSim' : {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) -> 
 applyControlledUSplitSim' q ust (MkBinarySimulatedOp usn vsn csn str)= 
   let (q, k) = qubitToNatPair q in
     let vn = findInLinQ q vsn in
-      let (MkBinarySimulatedOp un vn dummyc dummystr) # (lvLeft # lvRight)= runUStateT (MkBinarySimulatedOp  (IdGate {n = n}) vn n str) ust in
-        let unew # _ = applyOrErrorIO (controlled un) usn (k :: (toVectN vn)) in
-          (MkBinarySimulatedOp unew vsn csn str) # ((q :: lvLeft) # lvRight)
+      let (MkBinarySimulatedOp un vn dummyc dummystr) # (lvLeft # lvRight) = runUStateT (MkBinarySimulatedOp  (IdGate {n = n}) vn n str) ust in
+        let lvMid # vect = distributeDupedLVectVect (lvLeft ++ lvRight) in
+          let v = newVectOrderN (S n) vect in
+            let vn = findInLin k v in
+                case decInj (S n) (k :: vn) of --see above for reasoning
+                Yes prfYes => let unew = (UnitaryLinear.apply (controlled un) usn (k :: vn) {prf = prfYes}) in 
+                                let lvOutL # lvOutR = splitLVinto i j lvMid in 
+                                   (MkBinarySimulatedOp unew vsn csn str) # (q :: lvOutL # lvOutR)
+                No prfNo => let applicableSn = toVectN $ makeNeutralVect (S n) in 
+                                let unew # _ = (applyOrErrorIO (controlled un) usn (applicableSn)) in 
+                                let lvOutL # lvOutR = splitLVinto i j lvMid in 
+                                    (MkBinarySimulatedOp unew vsn csn str)# (q :: lvOutL # lvOutR) 
 
 ||| Implementatstrn of abstract controlled split applicatstrn     
 applyControlledSimulatedSplitCirc: {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (BinarySimulatedOp n) (BinarySimulatedOp n) (LPair (LVect i Qubit) (LVect j Qubit)))

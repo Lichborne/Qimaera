@@ -219,8 +219,9 @@ main = do
   putStrLn "\nSmall test with Encoding in VQE"
   --cut <- testQAOA
   --putStrLn $ "result from QAOA : " ++ show cut
-  --adder <- adderTestIo
-  absControl <- absControlTestIo
+  adder <- adderTestIo
+  --adderq <- adderTestQ
+  --absControl <- absControlTestIo
   --qftAbs <-qftAbsTestIo
   --qftTest <- qftTestIo
   --qftControl <- qftControlTestIo
