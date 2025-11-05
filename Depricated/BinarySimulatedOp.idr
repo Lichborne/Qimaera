@@ -12,7 +12,7 @@ import Lemmas
 import QStateT
 import LinearTypes
 import UnitaryLinear
-import SimulatedOp
+--import UnitaryOp
 import UStateT
 import Control.Linear.LIO
 import QuantumOp
@@ -285,15 +285,15 @@ export
 UnitaryOp BinarySimulatedOp where
   applyUnitary = applyUnitarySimulatedCirc
   applyUnitaryOwn = applyUnitaryOwnSimulatedCirc
-  applyUnitaryAbs = applyUnitaryAbsSimulatedCirc
+  --applyUnitaryAbs = applyUnitaryAbsSimulatedCirc
   applyControlledAbs = applyControlAbsSimulatedCirc
   adjointUST = adjointUSTSimCirc'
   applyParallel = applyParallelSimulatedBinary
   --applyControlWithSplitLVects = applyControlledSimulatedSplitCirc
-  --applyWithSplitLVects = applyWithSplitLVectsSimulatedCirc
-  --reCombineAbs = reCombineAbsSimulatedCirc
+  ----applyWithSplitLVects = applyWithSplitLVectsSimulatedCirc
+  --reCombineAbs= reCombineAbsSimulatedCirc
   run          = runSimulatedCircU
-  runSplit = runSplitSimulatedCircU
+  --runSplit = runSplitSimulatedCircU
 
 export
 QuantumOp BinarySimulatedOp where

@@ -1,20 +1,8 @@
-import Data.Vect
-import Data.Vect.Sort
 import Data.Nat
-import Decidable.Equality
-import System.File
-import Injection
-import Matrix
-import Complex
-import System.Random
 import Lemmas
-import QStateT
-import Control.Linear.LIO
 import LinearTypes
 import UnitaryLinear
---import UnitaryOp
 import UStateT
-import Control.Linear.LIO
 
 
 

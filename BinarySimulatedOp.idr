@@ -399,15 +399,13 @@ export
 UnitaryOp BinarySimulatedOp where
   applyUnitary = applyUnitarySimulatedCirc
   applyUnitaryOwn = applyUnitaryOwnSimulatedCirc
-  applyUnitaryAbs = applyUnitaryAbsSimulatedCirc
   applyControlledAbs = applyControlAbsSimulatedCirc
   adjointUST = adjointUSTSimCirc'
   applyParallel = applyParallelSimulatedBinary
   applyControlWithSplitLVects = applyControlledSimulatedSplitCirc
-  applyWithSplitLVects = applyWithSplitLVectsSimulatedCirc
-  reCombineAbs = reCombineAbsSimulatedCirc
+  reCombineAbs= reCombineAbsSimulatedCirc
   run          = runSimulatedCircU
-  runSplit = runSplitSimulatedCircU
+ 
   exportSelf = exportSelf'
 
 export
@@ -420,8 +418,8 @@ QuantumOp BinarySimulatedOp where
   runQ          = runSimulatedCircVis
 
 {-}
-UnitaryRun SImulatedCircuit where
-  newQubits    = newQubitsSimulatedCirc
-  applyUST = applyUnitaryCircSimulated
-  applyUnitaryDirectly = applyUDirectlyCircSimulated
-runU          = runUSimCirc -}
+||| these cannot now be used as part of the interface, their usage is a but more roundabout:
+ --runSplit = runSplitSimulatedCircU
+ --applyWithSplitLVects = applyWithSplitLVectsSimulatedCirc
+ --applyUnitaryAbs = applyUnitaryAbsSimulatedCirc
+-}

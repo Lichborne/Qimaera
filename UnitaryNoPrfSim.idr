@@ -195,16 +195,21 @@ export
 UnitaryOp UnitaryNoPrf where
   applyUnitary = applyUnitaryNoPrfSimulated
   applyUnitaryOwn = applyUnitaryNoPrfOwnSimulated
-  applyUnitaryAbs = applyUnitaryNoPrfAbsSimulated
   applyControlledAbs = applyControlAbsSimulated
   adjointUST = adjointUSTNoPrf'
   applyParallel = applyParallelSimulatedNoPrf
   applyControlWithSplitLVects = applyControlledSimulatedSplit
-  applyWithSplitLVects = applyUnitaryNoPrfAbsSplitSimulated
-  reCombineAbs = reCombineAbsUnitaryNoPrfSimulated
+  reCombineAbs= reCombineAbsUnitaryNoPrfSimulated
   run          = runUnitaryNoPrfSim 
-  runSplit = runSplitUnitaryNoPrfSim
   applyH = applyHSim
   applyP = applyPSim
   applyCNOT = applyCNOTSim
   exportSelf = exportSelf'
+
+
+{-
+  ||| these cannot now be used as part of the interface, their usage is a but more roundabout:
+    --runSplit = runSplitUnitaryNoPrfSim
+    --applyWithSplitLVects = applyUnitaryNoPrfAbsSplitSimulated
+    --applyUnitaryAbs = applyUnitaryNoPrfAbsSimulated
+-}

@@ -191,9 +191,9 @@ splitLVinto (S m) (S r) (a::as) = let as # ass = splitLVinto m (S r) (as) in (a:
 
 
 {-}
-applyWithSplitLVects = applyWithSplitLVectsSimulated
-reCombineAbs = reCombineAbsSimulated
-runSplit = runSplit'
+--applyWithSplitLVects = applyWithSplitLVectsSimulated
+reCombineAbs= reCombineAbsSimulated
+--runSplit = runSplit'
     let ((MkSimulatedOp vacuousQS ui vi vacuousCounter) # lvect) = (UnitaryOp.run' (MkSimulatedOp (neutralIdPow i) (IdGate {n = i}) (fromVectN vect) i) ust) in
     let lvOut = (mergeLVects lvect lvInt) 
         lvFin # vect = distributeDupedLVectVect lvOut

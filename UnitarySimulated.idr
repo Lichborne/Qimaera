@@ -2,24 +2,14 @@ module UnitarySimulated
 
 import Data.Vect
 import Data.Nat
-import Control.Monad.State
 import Data.Vect.Sort
 import Decidable.Equality
-import System.File
 import Injection
-import Matrix
---import UnitaryOp
-import Complex
 import Lemmas
 import UnitaryLinear
 import UStateT
-import Control.Linear.LIO
 import LinearTypes
-import Data.String
-import Data.Maybe
 import QStateT
-import Data.Linear.Notation
-import Data.Linear.Interface
 import QuantumOp
 
 
@@ -268,22 +258,25 @@ export
 UnitaryOp Unitary where
   applyUnitary = applyUnitarySimulated
   applyUnitaryOwn = applyUnitaryOwnSimulated
-  applyUnitaryAbs = applyUnitaryAbsSimulated
   applyControlledAbs = applyControlAbsSimulated
   adjointUST = adjointUST'
   applyParallel = applyParallelSimulated
   applyControlWithSplitLVects = applyControlledSimulatedSplit
-  applyWithSplitLVects = applyWithSplitLVectsSimulated
-  reCombineAbs = reCombineAbsUnitarySimulated
+  reCombineAbs= reCombineAbsUnitarySimulated
   run          = runUnitarySim 
-  runSplit = runSplitUnitarySim
   applyH = applyHSim
   applyP = applyPSim
   applyCNOT = applyCNOTSim
   exportSelf = exportUnitarySelf
 
 
+
   {-
+  ||| these cannot now be used as part of the interface, their usage is a but more roundabout:
+  --runSplit = runSplitUnitarySim
+  --applyWithSplitLVects = applyWithSplitLVectsSimulated
+  --applyUnitaryAbs = applyUnitaryAbsSimulated
+
   private
 makeSafeForAbstractControlVect : (1c:Nat) -> (1_ : Vect i Nat) -> (LPair (Nat) (Vect i Nat))
 

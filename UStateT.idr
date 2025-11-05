@@ -1,10 +1,7 @@
 module UStateT
 import Control.Monad.State
 import LinearTypes
-import Control.Linear.LIO
 import UnitaryLinear
-
-
 
 
 

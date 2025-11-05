@@ -39,11 +39,6 @@ interface UnitaryOp (0 t : Nat -> Type) where
   applyUnitaryOwn : {n : Nat} -> {i : Nat} ->
   (1 _ : LVect i Qubit) -> (1 ownUnitary : t i) -> UStateT (t n) (t n) (LVect i Qubit)
 
-  ||| Apply a user-implemented unitary circuit to the Qubits specified by the Vect argument  
-  ||| This is essentially the same as just sequencing normally, and is mostly only representationally helpful       
-  applyUnitaryAbs: {n : Nat} -> {i : Nat} -> (1_ : UStateT (t n) (t n) (LVect i Qubit))      
-                   -> UStateT (t n) (t n) (LVect i Qubit)
-
   ||| Apply the Hadamard gate to a single Qubit
   applyH : {n : Nat} -> (1 _ : Qubit) -> UStateT (t n) (t n) (LVect 1 Qubit)
   applyH q = do
@@ -84,21 +79,14 @@ interface UnitaryOp (0 t : Nat -> Type) where
   ||| need to define this themselves
   exportSelf :  {i : Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LVect i Qubit)) -> (t n)
 
-  --------------------- Split Computation and Accompanying Utilities -------------------------
+  --------------------- Split Computation and Accompanying Utilities (Useful for some definitions) -------------------------
 
-  ||| sequence to the end with split computation
-  runSplit :  {i : Nat} -> {j:Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit)) ) 
-              -> (LPair (t n) (LPair (LVect i Qubit) (LVect j Qubit)))
-      
-  ||| Abstract split application: Convenience function for avoiding proofs when dealing with multiple qubit list inputs/ancillae
-  applyWithSplitLVects : {n : Nat} -> {i : Nat} -> {j : Nat} -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit)))
-                          -> UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit))
-
-  |||recombine split computation
+  |||recombine split computation. This is raised in to UnitaryOp so that idris can see that appropriate conditions are fulfilled
   reCombine : {i:Nat} -> {j:Nat} ->  {n : Nat} -> (1 _ : LVect i Qubit) -> (1 _ : LVect j Qubit) -> UStateT (t n) (t n) (LVect (i+j) Qubit)
   reCombine {i=i} is js =  pure $ LinearTypes.(++) is js  
 
-  ||| Abstract recombination
+
+  ||| Abstract recombination. Helps with applying a split-computed unitary in QuantumOp
   reCombineAbs : {i:Nat} -> {j:Nat} -> {n : Nat} -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit))) 
                 -> UStateT (t n) (t n) (LVect (i + j) Qubit)
 
@@ -141,6 +129,30 @@ reCombineSingleL : UnitaryOp t => {i:Nat}  -> {n : Nat} -> (1 _ : Qubit) -> (1 _
 reCombineSingleL {i=Z} q [] =  pure $ [q]
 reCombineSingleL {i=i} q is = pure $ (q :: is)
 
+----------------Optionally definable functions ---------------
+||| These are patterns for functions that are useful/helpful to 
+||| define in concrete implementations, but are not part of the
+||| interface.
+
+||| Apply a user-implemented unitary circuit to the Qubits specified by the Vect argument  
+||| This is essentially the same as just sequencing normally, and is mostly only representationally helpful     
+export  
+applyUnitaryAbs: UnitaryOp t => {n : Nat} -> {i : Nat} -> (1_ : UStateT (t n) (t n) (LVect i Qubit))      
+                  -> UStateT (t n) (t n) (LVect i Qubit)
+
+
+||| sequence to the end with split computation
+export
+runSplit : UnitaryOp t =>  {i : Nat} -> {j:Nat} -> (1_: (t n)) -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit)) ) 
+            -> (LPair (t n) (LPair (LVect i Qubit) (LVect j Qubit)))
+    
+||| Abstract split application: Convenience function for avoiding proofs when dealing with multiple qubit list inputs/ancillae
+export
+applyWithSplitLVects : UnitaryOp t =>   {n : Nat} -> {i : Nat} -> {j : Nat} -> (1_ : UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit)))
+                        -> UStateT (t n) (t n) (LPair (LVect i Qubit) (LVect j Qubit))
+
+-------------------------------------------------------------------------------------------------------------
+                      
 %hint
 export
 singleQubit : (1 _ : LVect 1 Qubit)-> Qubit
@@ -173,6 +185,7 @@ splitQubitsAt 0 any  = pure $ [] # (rewrite minusZeroRight i in any)
 splitQubitsAt (S k) (a::as) = do
     as # ass <- splitQubitsAt k (as)
     pure $ ((a :: as)) # ass
+
 
 ||| split qubits at index
 public export

@@ -290,15 +290,19 @@ export
 UnitaryOp SimulatedOp where
   applyUnitary = applyUnitarySimulated
   applyUnitaryOwn = applyUnitaryOwnSimulated
-  applyUnitaryAbs = applyUnitaryAbsSimulated
   applyControlledAbs = applyControlAbsSimulated
   applyParallel = applyParallelSimulated 
   adjointUST = adjointUST'
   applyControlWithSplitLVects = applyControlledSimulatedSplit
-  applyWithSplitLVects = applyWithSplitLVectsSimulated
-  reCombineAbs = reCombineAbsSimulated
-  runSplit = runSplit'
+  reCombineAbs= reCombineAbsSimulated
   run          = run' 
   exportSelf = exportSelf'
 
 -------------------------------------------------------------------------
+
+{-
+  ||| these cannot now be used as part of the interface, their usage is a but more roundabout:
+    --runSplit = runSplit'
+    --applyWithSplitLVects = applyWithSplitLVectsSimulated
+    --applyUnitaryAbs = applyUnitaryAbsSimulated
+-}

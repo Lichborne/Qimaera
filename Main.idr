@@ -116,7 +116,7 @@ qftControlTest : (Unitary 4)
 qftControlTest = runUnitaryOp (do
   [c] <- supplyQubits 1
   [q1,q2,q3]<- supplyQubits 3
-  out <- applyUStateT (applyUnitaryAbs (applyControlledAbs q1 (qftUAbs {i = 3} {n = 3} [c,q2,q3])))
+  out <- applyUStateT ((applyControlledAbs q1 (qftUAbs {i = 3} {n = 3} [c,q2,q3])))
   pure out)
 
 qftControlTestIo : IO ()

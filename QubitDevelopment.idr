@@ -1,4 +1,4 @@
-module Qubit
+module QubitDevelopment
 
 import Data.Nat
 import Data.Vect
@@ -14,6 +14,8 @@ import public Data.Linear.Interface
 import System
 import Data.Linear
 import Lemmas
+
+||| This file contains Unique Linear Vectors and other Qubit related developments, and is separate from the main files
 
 export
 data Qubit : Type where

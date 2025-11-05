@@ -12,13 +12,9 @@ import Complex
 import System.Random
 import QuantumOp
 import RandomUtilities
-
 import Lemmas
---import UnitaryOp
 import UStateT
 import BinarySimulatedOp
---import UnitarySimulated
---import UnitaryNoPrf
 
 %search_timeout 1000
 

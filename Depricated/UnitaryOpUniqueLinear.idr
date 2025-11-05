@@ -483,7 +483,7 @@ export
 UnitaryOp SimulatedOp where
   applyUnitary = applyUnitarySimulated
   applyUnitaryOwn = applyUnitaryOwnSimulated
-  applyUnitaryAbs = applyUnitaryAbsSimulated
+  --applyUnitaryAbs = applyUnitaryAbsSimulated
   applyControlledAbs = applyControlAbsSimulated
   applyParallel = applyParallelSimulated 
   adjointUST = adjointUST'
@@ -497,8 +497,8 @@ UnitaryOp SimulatedOp where
 
 {-}applyControlWithSplitULVectEs = applyControlledSimulatedSplit
 applyWithSplitULVectEs = applyWithSplitULVectEsSimulated
-reCombineAbs = reCombineAbsSimulated
-runSplit = runSplit'
+reCombineAbs= reCombineAbsSimulated
+--runSplit = runSplit'
     let ((MkSimulatedOp vacuousQS ui vi vacuousCounter) # lvect) = (UnitaryOp.run' (MkSimulatedOp (neutralIdPow i) (IdGate {n = i}) (fromVectN vect) i) ust) in
     let lvOut = (mergeULVectEs ULVectE lvInt) 
         lvFin # vect = distributeDupedULVectEVect lvOut
@@ -564,15 +564,7 @@ applyUnitary' v u q =
 
 
 {-}
-applytU' : {n : Nat} -> {i : Nat} ->
-                (1 _ : ULVectE i Qubit) -> (SimulatedOp i) -> (1 _ : SimulatedOp n) -> (LPair (SimulatedOp n) (ULVectE i Qubit))
-applytU' v u q = 
-  let (qs # v') # ind = listIndices q v 
-      qs2 = applyCirc ind u qs
-  in (qs2 # v') where
-    applyCirc : Vect i Nat -> (SimulatedOp i) -> (1 _ : SimulatedOp n) -> SimulatedOp n
-    applyCirc v (MkSimulatedOp ui qi ci) (MkSimulatedOp qst qn cn) = 
-          MkSimulatedOp ((tensorUp ui n qi)`matrixMult` qst) qn cn
+
 
 applyUnitaryTSim : {n : Nat} -> {i : Nat} ->
   (1 _ : ULVectE i Qubit) -> (SimulatedOp i) -> UStateT (SimulatedOp n) (SimulatedOp n) (ULVectE i Qubit)
