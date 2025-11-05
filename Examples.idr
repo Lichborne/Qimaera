@@ -12,8 +12,10 @@ import System.Random
 import Injection
 import Complex
 import QuantumOp
+import UnitarySimulated
+import QFT
+import ModularExponentiation
 import SimulatedOp
-
 import Lemmas
 
 
@@ -260,6 +262,73 @@ drawQuantumOp = do
       putStrLn "Apply the toffoli gate on q1,q3 and q2"
       putStrLn $ "Measure q2 : result is " ++ show b2
       putStrLn $ "Measure q1 and q3 : results are " ++ show b1 ++ " and " ++ show b3
+
+-------------------------- Various Tests for Split Computation -------------------------
+inPlaceSplitTest : UnitaryOp t => {i: Nat} -> {n : Nat} 
+                                -> (1 controls : LVect 2 Qubit) -- these are the controls c1 and c2
+                                -> (1 ancilla : LVect 1 Qubit) -- this is the additional ancilla
+                                -> (1 bigN : LVect i Qubit) -- this is N represented in i Qubits
+                                -> (1 b : LVect (S i) Qubit) -- this is b plus the required additional qubit as the last qubit
+                                -> UStateT (t (S (S n))) (t (S (S n))) (LPair (LVect (3 + i)  Qubit) (LVect ((S i)) Qubit)) -- we collect the 2 controls, ancilla, a, and N in the same output LVect, and b in the other
+
+inPlaceSplitTest [c1,c2] [ancilla] [] [q] = pure $ (c1::c2::[ancilla]) # [q]
+inPlaceSplitTest [c1,c2] [ancilla] bigNs (b::bs) = do
+    bs <- (qftUInv (b::bs)) 
+    (bigNs) # bs <-(inPlaceQFTAdder bigNs (bs))
+    bs <- (qftU (bs)) -- the most signigifact bit in out case will be the first, which is where the overflow goes, so this is our control
+    pure $ ((++) (c1::c2::[ancilla]) bigNs) # (bs)
+
+export
+inPlaceSplitTestC : UnitaryOp t => {i: Nat} -> {n : Nat} 
+                                -> (1 controls : LVect 2 Qubit) -- these are the controls c1 and c2
+                                -> (1 ancilla : LVect 1 Qubit) -- this is the additional ancilla
+                                -> (1 bigN : LVect i Qubit) -- this is N represented in i Qubits
+                                -> (1 b : LVect (S i) Qubit) -- this is b plus the required additional qubit as the last qubit
+                                -> UStateT (t (S (S n))) (t (S (S n))) (LVect ((3 + i) + (S i)) Qubit) -- we collect the 2 controls, ancilla, a, and N in the same output LVect, and b in the other
+
+inPlaceSplitTestC [c1,c2] [ancilla] [] [q] = pure $ (c1::c2::ancilla::[q])
+inPlaceSplitTestC {i = S k} [c1,c2] [ancilla] bigNs (b::bs) = do
+    bs <- (qftUInv (b::bs)) 
+    (c2::bigNsbs) <- applyControlledAbs c2 (inPlaceQFTAdder2 bigNs (bs))
+    bigNs2 # bs2 <- splitQubitsInto (S k) (S (S k)) bigNsbs
+    bs <- (qftU (bs2)) -- the most signigifact bit in out case will be the first, which is where the overflow goes, so this is our control
+    rest <- reCombine (c1::c2::[ancilla]) bigNs2
+    pure $ ((++) rest bs)
+
+||| Test of split control with second control qubit
+inPlaceSplitTestCS : UnitaryOp t => {i: Nat} -> {n : Nat} 
+                                -> (1 controls : LVect 2 Qubit) -- these are the controls c1 and c2
+                                -> (1 ancilla : LVect 1 Qubit) -- this is the additional ancilla
+                                -> (1 bigN : LVect i Qubit) -- this is N represented in i Qubits
+                                -> (1 b : LVect (S i) Qubit) -- this is b plus the required additional qubit as the last qubit
+                                -> UStateT (t (S (S n))) (t (S (S n))) (LPair (LVect (3 + i)  Qubit) (LVect ((S i)) Qubit)) -- we collect the 2 controls, ancilla, a, and N in the same output LVect, and b in the other
+
+inPlaceSplitTestCS [c1,c2] [ancilla] [] [q] = pure $ (c1::c2::[ancilla]) # [q]
+inPlaceSplitTestCS [c1,c2] [ancilla] bigNs (b::bs) = do
+    bs <- (qftUInv (b::bs)) 
+    (c2::bigNs) # bs <-applyControlWithSplitLVects c2 (inPlaceQFTAdder bigNs (bs))
+    bs <- (qftU (bs)) -- the most signigifact bit in out case will be the first, which is where the overflow goes, so this is our control
+    pure $ ((++) (c1::c2::[ancilla]) bigNs) # (bs)
+
+||| Run 
+inPlaceSplitTestU : (Unitary 8)
+inPlaceSplitTestU = runUnitaryOp (do
+        cs <- supplyQubits 2--- recall that UnitaryOp can only ever get qubits from quantumOp, so we dont have to worry about whether the qubits will be distinct
+        ancilla <- supplyQubits 1
+        bigN <- supplyQubits 2
+        b <- supplyQubits 3
+        out <-  applyUStateTSplit (inPlaceSplitTestCS cs ancilla (bigN) (b))
+        pure out)   
+
+inPlaceSplitTestIo : IO (Unitary 8)
+inPlaceSplitTestIo = let
+  (uni) = inPlaceSplitTestU
+  (uni1, uni2) = UnitarySimulated.duplicateLinU uni
+  in
+    do
+      d <- draw uni
+      eo <- exportToQiskit "splittest.py" uni1
+      pure uni1 
 
 ------------------------------------ Draw all example circuits ------------------------------------
 

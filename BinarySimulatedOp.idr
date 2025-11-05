@@ -203,18 +203,20 @@ baseStringVis : (n:Nat) -> String
 baseStringVis n = ("import numpy as np\n" ++
   "from qiskit import QuantumCircuit\n\n")
   
-finalString : (n:Nat) -> (counter:Nat) -> String -> String
-finalString n c str = (str ++ "def OutputCircuit(n):  \n" 
+finalString : (n:Nat) -> (counter:Nat) -> String -> (name:String) ->  String
+finalString n c str name = (str ++ "def OutputCircuit(n):  \n" 
                     ++ "\tcircuit = QuantumCircuit(n, n)\n" 
                     ++ (addFuncOfFuncs c) ++ "\treturn circuit\n\n"
-                    ++ "qc = OutputCircuit(" ++ show n ++ ")")
+                    ++ "qc = OutputCircuit(" ++ show n ++ ")\n\n" 
+                    ++ "print(qc)\n\n"
+                    ++ "qc.draw(output=\"mpl\", filename=\""++ name ++".jpeg\")")
 
 runSimulatedCircVis : {n:Nat} -> QStateT (BinarySimulatedOp 0) (BinarySimulatedOp 0) (Vect n Bool) -> IO (Vect n Bool)
 runSimulatedCircVis {n} s = LIO.run (do
   ((MkBinarySimulatedOp un w c str) # v) <- runQStateT (MkBinarySimulatedOp IdGate [] 0 (baseStringVis n)) s
   nothing <- putStrLn "Please give a name to the file you wish to export the circuit to:  "
   name <- getLine
-  uinout <- writeFile (name ++ ".py") (finalString n c str)
+  uinout <- writeFile (name ++ ".py") (finalString n c str name)
   case v of 
                     [] => pure []
                     (x :: xs) => pure (x :: xs))

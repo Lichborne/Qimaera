@@ -83,7 +83,7 @@ inPlaceQFTAdder (a :: as) (b::bs) = do --pattern matchign requires that the lvec
     unqftbs <- (qftUInv (addBs))
     pure $ addAs # unqftbs
 
------------------------------------------------
+-------------- Alternate version, with one input vector -------------------
 
 addWithQFTHelp2 : UnitaryOp t => {k : Nat} -> {n: Nat} -> (1_ : LVect k Qubit) 
                                     -> (1_ : Qubit) -> (m : Nat) -> UStateT (t n) (t n) ((LVect (S k) Qubit))
@@ -135,6 +135,8 @@ inPlaceQFTAdderConcat (a :: as) (b::bs) = do --pattern matching requires that th
 
     
 ------------------INVERSE ADDER------------------
+||| built explicitly as exercise; can be achieved by using 
+||| adjointUST (inPlaceQFTAdder ... )
 
 addWithQFTHelpInv : UnitaryOp t => {k : Nat} -> {n: Nat} -> (1_ : LVect k Qubit) 
                                     -> (1_ : Qubit) -> (m : Nat) -> UStateT (t n) (t n) (LPair (LVect k Qubit) (LVect 1 Qubit))
@@ -168,7 +170,7 @@ inPlaceQFTAdderInvConcat a [] impossible
 inPlaceQFTAdderInvConcat (a :: as) (b::bs) = do --pattern matching requires that the lvects be of this form for some reason - idris can be strange
     addAs # unqftbs <- inPlaceQFTAdderInv (a :: as) (b::bs)
     pure (LinearTypes.(++) addAs unqftbs)
-    
+
 ---------------IN-PLACE MODULAR ADDER---------------       
 
 export
@@ -197,6 +199,12 @@ inPlaceModularAdder [c1,c2] [ancilla] (a::as) bigNs (b::bs) = do
     (c1::c2::as) # (bs) <-  applyControlWithSplitLVects c1 (applyControlWithSplitLVects c2 (inPlaceQFTAdder (ass) (qftbs2)))
     aAndN <- reCombine as bigNs
     pure $ ((++) (c1::c2::[ancilla]) aAndN) # (bs)
+
+---------------IN-PLACE MODULAR ADDER (One Output) ---------------  
+||| Alternate version that was used for checking whether split computation
+||| parses correctly for complicated operations. It is far easier to 
+||| do the rest by keeping some qubit lists sepatate in the output,
+||| so since this was alright, only split implementations are given for the rest
 
 inPlaceModularAdderUnified : UnitaryOp t => {i: Nat} -> {n : Nat} 
                                 -> (1 controls : LVect 2 Qubit) -- these are the controls c1 and c2

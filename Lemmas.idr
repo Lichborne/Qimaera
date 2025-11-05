@@ -660,6 +660,7 @@ export
 isInjectiveRangeVectDec : (startIndex : Nat) -> (length : Nat) -> IsInjectiveDec (startIndex+length) (rangeVect startIndex length)
 isInjectiveRangeVectDec i length = IsInjectiveSuccDec (allDiffRangeVectDec i length) (allSmallerRangeVectDec i length)
 
+
 {-}
 -- Safe indexing by Nat (returns Nothing if out of bounds)
 getAt : {n : Nat} -> Nat -> Vect n Nat -> Maybe Nat

@@ -17,6 +17,7 @@ import LinearTypes
 import UnitaryLinear
 import UStateT
 import Control.Linear.LIO
+import UnitaryNoPrf
 
 ||| The Qubit type is used to identify individual qubits. The Nat argument is
 ||| used to uniquely identify a qubit. This type does *not* carry any quantum
@@ -807,6 +808,10 @@ idUp :  {m:Nat} -> (1 _ : Unitary m) -> (q : Nat) -> Unitary (m + q)
 idUp um Z = rewrite plusZeroRightNeutral m in um
 idUp um (S k) = um # (IdGate {n = (S k)})
 
+idUpNoPrf :  {m:Nat} -> (1 _ : UnitaryNoPrf m) -> (q : Nat) -> UnitaryNoPrf (m + q)
+idUpNoPrf um Z = rewrite plusZeroRightNeutral m in um
+idUpNoPrf um (S k) = um # (IdGate {n = (S k)})
+
 export
 newQubitsUST : {n:Nat} -> (p : Nat) -> UStateT (Unitary n) (Unitary (n+p)) (LVect p Qubit)
 newQubitsUST p = MkUST (newQubits' p) where
@@ -816,25 +821,12 @@ newQubitsUST p = MkUST (newQubits' p) where
     in (idUp un q # qubits)
 
 export
-makeSafeForAbstractControl : UnitaryOp t => {n:Nat} -> (1c:Qubit) -> (1_ : LVect i Qubit) -> UStateT (t n) (t n) (LPair (Qubit) (LVect i Qubit))
-makeSafeForAbstractControl any [] = pure $ any # []
-makeSafeForAbstractControl (MkQubit Z) [MkQubit Z] = pure $ (MkQubit Z) # [MkQubit Z] --invalid case in our context, no change
-makeSafeForAbstractControl (MkQubit Z) [MkQubit (S m)] = pure $ (MkQubit Z) # [MkQubit m]
-makeSafeForAbstractControl (MkQubit (S m)) [MkQubit Z] = pure $ (MkQubit (S m)) # [MkQubit Z]
-makeSafeForAbstractControl (MkQubit Z) (MkQubit Z :: qs) = pure $ (MkQubit Z) # (MkQubit Z :: qs) --invalid case in our context, so whatever is fine
-makeSafeForAbstractControl (MkQubit Z) (MkQubit (S m) :: qs) = do
-  control # rest <- makeSafeForAbstractControl (MkQubit Z) qs
-  pure $ control # (MkQubit m :: rest)
-makeSafeForAbstractControl (MkQubit (S k)) (MkQubit (S m) :: qs) = case isLT k m of
-  Yes prfYes => do 
-    control # rest <- makeSafeForAbstractControl (MkQubit (S k)) qs
-    pure $ control # (MkQubit m :: rest)
-  No prfNo => do 
-    control # rest <- makeSafeForAbstractControl (MkQubit (S k)) qs
-    pure $ control # (MkQubit (S m ):: rest)
-makeSafeForAbstractControl (MkQubit (S k)) (MkQubit Z :: qs) = do 
-    control # rest <- makeSafeForAbstractControl (MkQubit (S k)) qs
-    pure $ control # (MkQubit (Z) :: rest)
+newQubitsUSTNoPrf : {n:Nat} -> (p : Nat) -> UStateT (UnitaryNoPrf n) (UnitaryNoPrf (n+p)) (LVect p Qubit)
+newQubitsUSTNoPrf p = MkUST (newQubits' p) where
+  newQubits' : {m:Nat} -> (q : Nat) -> (1 _ : UnitaryNoPrf m) ->(LPair (UnitaryNoPrf (m + q)) (LVect q Qubit))
+  newQubits' {m} q un = 
+    let (qubits # v') = newQubitsPointersNoCount q (mkQubitV 0 m)
+    in (idUpNoPrf un q # qubits)
 
 public export
 interface RunUnitaryOp (0 t : Nat -> Type) where
@@ -865,14 +857,14 @@ interface RunUnitaryOp (0 t : Nat -> Type) where
 
 
 
-
+-------------Unitary implementation of UnitaryRun --------------
 
 ||| Helper for Unitary implementation of abstract unitary application (that is, whatever one built using UStateT)
 applyUSTR': {n : Nat} -> {i : Nat} -> (1_ : UStateT (Unitary n) (Unitary n) (LVect i Qubit))      
                    -> (1 _ : Unitary n) -> LPair (Unitary n) (LVect i Qubit)
 applyUSTR' ust un = 
   let (uOut # lvect) = runUStateT IdGate ust in
-        let unew = compose uOut un in
+        let unew = UnitaryLinear.compose uOut un in
           do unew # (lvect)
 
 ||| Unitary implementation of abstract unitary application (that is, whatever one built using UStateT)
@@ -885,7 +877,7 @@ applyUSTSplit': {n : Nat} -> {i : Nat} -> (1_ : UStateT (Unitary n) (Unitary n) 
                    -> (1 _ : Unitary n) -> LPair (Unitary n) (LVect (i + j) Qubit)
 applyUSTSplit' ust un = 
   let (uOut # (lvi # lvj)) = runUStateT IdGate ust in
-        let unew = compose uOut un in
+        let unew = UnitaryLinear.compose uOut un in
           do unew # (lvi ++ lvj)
 
 ||| Unitary implementation of abstract unitary application (that is, whatever one built using UStateT)
@@ -906,3 +898,111 @@ RunUnitaryOp Unitary where
   applyUStateT = applyUSTSimulatedR
   runUnitaryOp = runUnitaryOp'
   applyUStateTSplit = applyUSTSimulatedSplit
+
+
+-------------UnitaryNoPrf implementation of UnitaryRun --------------
+
+||| Helper for Unitary implementation of abstract unitary application (that is, whatever one built using UStateT)
+applyUSTRNoPrf': {n : Nat} -> {i : Nat} -> (1_ : UStateT (UnitaryNoPrf n) (UnitaryNoPrf n) (LVect i Qubit))      
+                   -> (1 _ : UnitaryNoPrf n) -> LPair (UnitaryNoPrf n) (LVect i Qubit)
+applyUSTRNoPrf' {n} ust un = 
+  let (uOut # lvect) = runUStateT (UnitaryNoPrf.IdGate {n = n}) ust in
+        let unew = UnitaryNoPrf.compose uOut un in
+          unew # (lvect)
+
+||| UnitaryNoPrfimplementation of abstract UnitaryNoPrfapplication (that is, whatever one built using UStateT)
+applyUSTSimulatedRNoPrf : {n : Nat} -> {i : Nat} -> (1_ : UStateT (UnitaryNoPrf n) (UnitaryNoPrf n) (LVect i Qubit))      
+                   -> UStateT (UnitaryNoPrf n) (UnitaryNoPrf n) (LVect i  Qubit)
+applyUSTSimulatedRNoPrf ust = MkUST (applyUSTRNoPrf' ust )
+
+||| Helper for UnitaryNoPrfimplementation of abstract UnitaryNoPrfapplication (that is, whatever one built using UStateT)
+applyUSTSplitNoPrf': {n : Nat} -> {i : Nat} -> (1_ : UStateT (UnitaryNoPrf n) (UnitaryNoPrf n) (LPair (LVect i Qubit) (LVect j Qubit)))      
+                   -> (1 _ : UnitaryNoPrf n) -> LPair (UnitaryNoPrf n) (LVect (i + j) Qubit)
+applyUSTSplitNoPrf' ust un = 
+  let (uOut # (lvi # lvj)) = runUStateT UnitaryNoPrf.IdGate ust in
+        let unew = UnitaryNoPrf.compose uOut un in
+          unew # (lvi ++ lvj)
+
+||| UnitaryNoPrfimplementation of abstract UnitaryNoPrfapplication (that is, whatever one built using UStateT)
+applyUSTSimulatedSplitNoPrf : {n : Nat} -> {i : Nat} -> (1_ : UStateT (UnitaryNoPrf n) (UnitaryNoPrf n) (LPair (LVect i Qubit) (LVect j Qubit)))      
+                   -> UStateT (UnitaryNoPrf n) (UnitaryNoPrf n) (LVect (i + j) Qubit)
+applyUSTSimulatedSplitNoPrf ust = MkUST (applyUSTSplitNoPrf' ust )
+
+
+runUnitaryOpNoPrf' : {n:Nat} -> UStateT (UnitaryNoPrf 0) (UnitaryNoPrf n) (LVect n Qubit) -> (UnitaryNoPrf n)
+runUnitaryOpNoPrf' ust = let un # lv = runUStateT IdGate ust in
+                      let () = discardq lv in
+                        un
+
+
+public export
+RunUnitaryOp UnitaryNoPrf where
+  supplyQubits = newQubitsUSTNoPrf
+  applyUStateT = applyUSTSimulatedRNoPrf
+  runUnitaryOp = runUnitaryOpNoPrf'
+  applyUStateTSplit = applyUSTSimulatedSplitNoPrf
+
+
+-------------Other Utilities--------------
+export
+reCalculateNew : {n:Nat} -> (v: Vect n Nat) -> Nat
+reCalculateNew [] = 0
+reCalculateNew {n = S k} (x::xs) = smallestMissing (sort ((x::xs)))
+
+export
+newVectOrder : {i:Nat} -> (p : Nat) -> (v: Vect i Nat) -> (Vect p Nat)
+newVectOrder 0 _ = (([]))
+newVectOrder {i} (S p) xs = let newcounter = (reCalculateNew (xs)) in
+                let (v) = newVectOrder p (newcounter :: xs)
+                  in ((newcounter :: v))
+
+export
+plusminusisN : (i,n:Nat) -> Vect (plus i (minus n i)) Nat -> Vect (plus (minus n i) i) Nat
+plusminusisN i n vect = rewrite sym $ plusCommutative i (minus n i) in vect
+ 
+export
+plusminusn : (i,n:Nat) -> LTE i n -> Vect (plus (minus n i) i) Nat -> Vect n Nat
+plusminusn i n lte vect = rewrite sym $ plusMinusLte i n lte in vect
+
+export
+newVectOrderN : {i:Nat} -> (n:Nat) -> (v: Vect i Nat) -> (Vect n Nat)
+newVectOrderN n [] = newVectOrder n []
+newVectOrderN {i} n v = case isLTE i n of
+    Yes prfYes => let vect = (v ++ newVectOrder (minus n i) v) in 
+                    let vectOut = (plusminusn i n prfYes (rewrite plusCommutative (minus n i) i in vect))
+                      in vectOut
+    No prf => toVectN $ makeNeutralVect n -- irrelevant in terms of control flow
+
+export
+findInLin : {n:Nat} -> (q : Nat) -> Vect (S n) Nat -> (Vect n Nat)
+findInLin ( q) [] impossible
+findInLin {n = Z} ( q) ( m :: xs) = []
+findInLin {n = S r} ( q) ( m :: xs) = case decEq q m of
+  Yes _ => xs
+  No _ => ( m :: (findInLin {n = r} ( q) xs))
+findInLin ( a) (x :: xs) = xs 
+
+{- UNUSED but could be used:
+
+
+export
+makeSafeForAbstractControl : UnitaryOp t => {n:Nat} -> (1c:Qubit) -> (1_ : LVect i Qubit) -> UStateT (t n) (t n) (LPair (Qubit) (LVect i Qubit))
+makeSafeForAbstractControl any [] = pure $ any # []
+makeSafeForAbstractControl (MkQubit Z) [MkQubit Z] = pure $ (MkQubit Z) # [MkQubit Z] --invalid case in our context, no change
+makeSafeForAbstractControl (MkQubit Z) [MkQubit (S m)] = pure $ (MkQubit Z) # [MkQubit m]
+makeSafeForAbstractControl (MkQubit (S m)) [MkQubit Z] = pure $ (MkQubit (S m)) # [MkQubit Z]
+makeSafeForAbstractControl (MkQubit Z) (MkQubit Z :: qs) = pure $ (MkQubit Z) # (MkQubit Z :: qs) --invalid case in our context, so whatever is fine
+makeSafeForAbstractControl (MkQubit Z) (MkQubit (S m) :: qs) = do
+  control # rest <- makeSafeForAbstractControl (MkQubit Z) qs
+  pure $ control # (MkQubit m :: rest)
+makeSafeForAbstractControl (MkQubit (S k)) (MkQubit (S m) :: qs) = case isLT k m of
+  Yes prfYes => do 
+    control # rest <- makeSafeForAbstractControl (MkQubit (S k)) qs
+    pure $ control # (MkQubit m :: rest)
+  No prfNo => do 
+    control # rest <- makeSafeForAbstractControl (MkQubit (S k)) qs
+    pure $ control # (MkQubit (S m ):: rest)
+makeSafeForAbstractControl (MkQubit (S k)) (MkQubit Z :: qs) = do 
+    control # rest <- makeSafeForAbstractControl (MkQubit (S k)) qs
+    pure $ control # (MkQubit (Z) :: rest)
+    -}

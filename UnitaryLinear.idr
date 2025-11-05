@@ -551,9 +551,9 @@ exportToQiskitWithSize str sz g =
 public export
 unitarytoQVis : Unitary n -> String
 unitarytoQVis IdGate = ""
-unitarytoQVis (H i g) = unitarytoQVis g ++  "\tcircuit.h(" ++ show i ++ ")\n"
-unitarytoQVis (P p i g) = unitarytoQVis g ++ "\tcircuit.p(" ++ printPhase p 0.001 "np.pi" ++ ", "++ show i ++ ")\n" 
-unitarytoQVis (CNOT c t g) = unitarytoQVis g ++ "\tcircuit.cx(" ++ show c ++ ", " ++ show t ++ ")\n" 
+unitarytoQVis (H i g) = unitarytoQVis g ++  "\tcircuit.h(" ++ show i ++ ")\n\tcircuit.barrier()\n"
+unitarytoQVis (P p i g) = unitarytoQVis g ++ "\tcircuit.p(" ++ printPhase p 0.001 "np.pi" ++ ", "++ show i ++ ")\n\tcircuit.barrier()\n" 
+unitarytoQVis (CNOT c t g) = unitarytoQVis g ++ "\tcircuit.cx(" ++ show c ++ ", " ++ show t ++ ")\n\tcircuit.barrier()\n" 
 
 
 private
@@ -571,6 +571,38 @@ public export
 exportForQVis : {n : Nat} -> String -> Unitary n -> IO ()
 exportForQVis str g =
   let s = toQVis g in
+      do
+        a <- writeFile str s
+        case a of
+             Left e1 => putStrLn "Error when writing file"
+             Right io1 => pure ()
+            
+
+------------------ Export to Qiskit for Visualization ---------------------
+
+public export
+unitarytoQVisNoBarrier : Unitary n -> String
+unitarytoQVisNoBarrier IdGate = ""
+unitarytoQVisNoBarrier (H i g) = unitarytoQVis g ++  "\tcircuit.h(" ++ show i ++ ")\n"
+unitarytoQVisNoBarrier (P p i g) = unitarytoQVis g ++ "\tcircuit.p(" ++ printPhase p 0.001 "np.pi" ++ ", "++ show i ++ ")\n" 
+unitarytoQVisNoBarrier (CNOT c t g) = unitarytoQVis g ++ "\tcircuit.cx(" ++ show c ++ ", " ++ show t ++ ")\n" 
+
+
+private
+toQVisNoBarrier : {n : Nat} -> Unitary n -> String
+toQVisNoBarrier g =
+  let s = unitarytoQVisNoBarrier g in
+  ("import numpy as np\n" ++
+  "from qiskit import QuantumCircuit\n" ++
+  "def OutputCircuit():  \n" ++
+  "\tcircuit = QuantumCircuit(" ++ show n ++ ")\n" ++ s ++
+  "\treturn circuit \n\nqc = OutputCircuit()")
+
+|||Export a circuit to Qiskit code
+public export
+exportForQVisNoBarrier : {n : Nat} -> String -> Unitary n -> IO ()
+exportForQVisNoBarrier str g =
+  let s = toQVisNoBarrier g in
       do
         a <- writeFile str s
         case a of

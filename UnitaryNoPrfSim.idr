@@ -2,26 +2,17 @@ module UnitaryNoPrfSim
 
 import Data.Vect
 import Data.Nat
-import Control.Monad.State
+import Data.Vect.Sort
 import Decidable.Equality
-import System.File
 import Injection
-import Matrix
-import QuantumOp
-import Complex
 import Lemmas
-import UnitaryNoPrf
 import UnitaryLinear
+import UnitaryNoPrf
 import UStateT
-import Control.Linear.LIO
 import LinearTypes
-import Data.String
-import Data.Maybe
 import QStateT
-import Data.Linear.Notation
-import Data.Linear.Interface
+import QuantumOp
 import SimulatedOp
-
 
 
 public export
@@ -44,7 +35,11 @@ runSplitUnitaryNoPrfSim {i = i} simop ust = runUStateT simop ust
 private
 applyUnitaryNoPrf' : {n : Nat} -> {i : Nat} -> --let lvOut # vect = distributeDupedLVectVect lvIn in ( (apply ui u vect) ) # lvOut
                 (1 _ : LVect i Qubit) -> UnitaryNoPrf i -> (1 _ : UnitaryNoPrf n) -> (LPair (UnitaryNoPrf n) (LVect i Qubit))
-applyUnitaryNoPrf' lvIn ui (u) = let lvOut # vect = distributeDupedLVectVect lvIn in ( (apply ui u vect) ) # lvOut
+applyUnitaryNoPrf' lvIn ui (u) = let lvOut # vect = distributeDupedLVectVect lvIn in 
+  case decInj (n) vect of 
+            Yes prfYes => let unew = (UnitaryNoPrf.apply ui u vect) in unew # (lvOut)
+            No prfNo => let applicable = toVectN  $ makeNeutralVect i in --SEE UNITARYSIMULATED FOR MORE DETAIL
+                          let un = (UnitaryNoPrf.apply ui u (applicable)) in un # lvOut 
 
 export
 applyUnitaryNoPrfSimulated : {n : Nat} -> {i : Nat} ->
@@ -65,17 +60,23 @@ applyInternal : {n : Nat} -> {i : Nat} ->
   (1 _ : LVect i Qubit) -> UnitaryNoPrf i -> UStateT (UnitaryNoPrf n) (UnitaryNoPrf n) (LVect i Qubit)
 applyInternal lvect ui = MkUST (applyUnitaryNoPrf' lvect ui)
 
-------- below, it's the same pattern -> could be abstracted, noted for potential update --------------------
 
 private
 applyControlSimulated': {n : Nat} -> {i : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (UnitaryNoPrf n) (UnitaryNoPrf n) (LVect i Qubit))->      
     (1_ : UnitaryNoPrf (S n)) -> LPair (UnitaryNoPrf (S n)) (LVect (S i) Qubit)
 applyControlSimulated' {n} q ust usn = 
-  let (q, k) = qubitToNatPair q in
-    let vn = findInLinQ q (makeNeutralVect (S n)) in
-        let un # lvOut = runUStateT (IdGate {n = n}) ust in
-            let unew = UnitaryNoPrf.apply (controlled un) usn (k :: toVectN vn) in
-                unew # (q :: lvOut)
+  let un # lvOut = runUStateT (IdGate {n = n}) ust in
+    let (q, k) = qubitToNatPair q in
+      let lvMid # vect = distributeDupedLVectVect lvOut in
+        let v = newVectOrderN (S n) vect in
+          let vn = findInLin k v in
+            case decInj (S n) (k :: vn) of 
+              Yes prfYes => let unew = (UnitaryNoPrf.apply (controlled un) usn (k :: vn )) in unew # (q :: lvMid)
+              No prfNo => let applicableSn = toVectN  $ makeNeutralVect (S n) in -- this is only ever reached in the case of a multiple-control
+                                                                          -- operation which reduced the dimension of n
+                                                                          -- this can be tested by using UnitaryNoPrf
+                                                                          -- which works without issue
+                            let un = (UnitaryNoPrf.apply (controlled un) usn (applicableSn)) in un # (q :: lvMid)
 
 export
 applyControlAbsSimulated: {n : Nat} -> {i : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (UnitaryNoPrf n) (UnitaryNoPrf n) (LVect i Qubit))->      
@@ -93,9 +94,8 @@ duplicateLinU (CNOT c t g) = let (g1,g2) = duplicateLinU g in ((CNOT c t g1), (C
 applyUnitaryNoPrfAbs': {n : Nat} -> {i : Nat} -> (1_ : UStateT (UnitaryNoPrf n) (UnitaryNoPrf n) (LVect i Qubit))      
                    -> (1 _ : UnitaryNoPrf n) -> LPair (UnitaryNoPrf n) (LVect i Qubit)
 applyUnitaryNoPrfAbs' ust un = 
-  let (un1, un2)= duplicateLinU un in 
-  let (unew # lvect) = runUStateT un1 ust in
-        let ufinal = UnitaryNoPrf.compose unew un2 in
+  let (unew # lvect) = runUStateT IdGate ust in
+        let ufinal = UnitaryNoPrf.compose unew un in
           do ufinal # (lvect)
 
 ||| UnitaryNoPrf implementation of abstract UnitaryNoPrf application (that is, whatever one built using UStateT) 
@@ -107,9 +107,8 @@ applyUnitaryNoPrfAbsSimulated ust = MkUST (applyUnitaryNoPrfAbs' ust )
 applyUnitaryNoPrfAbsSplit' : {n : Nat} -> {i : Nat} -> {j : Nat} -> (1_ : UStateT (UnitaryNoPrf n) (UnitaryNoPrf n) (LPair (LVect i Qubit) (LVect j Qubit)))
                          -> (1_: UnitaryNoPrf n) -> LPair (UnitaryNoPrf n) (LPair (LVect i Qubit) (LVect j Qubit))
 applyUnitaryNoPrfAbsSplit' ust (un) = 
-  let (un1, un2)= duplicateLinU un in -- we need this because otherwise we need a wrapper around UnitaryNoPrf, since un is linear
-  let ((unew) # lvect) = runUStateT (un1) ust in
-        let unew = UnitaryNoPrf.compose unew un2 in
+  let ((unew) # lvect) = runUStateT IdGate ust in
+        let unew = UnitaryNoPrf.compose unew un in
           do ((unew) # (lvect))
 
 ||| Implementation of abstract split application - representationally useful
@@ -121,9 +120,19 @@ applyUnitaryNoPrfAbsSplitSimulated ust = MkUST (applyUnitaryNoPrfAbsSplit' ust)
 applyControlledUSplitSim' : {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (UnitaryNoPrf n) (UnitaryNoPrf n) (LPair (LVect i Qubit) (LVect j Qubit)))
                              -> (1_ : UnitaryNoPrf (S n)) -> LPair (UnitaryNoPrf (S n)) (LPair (LVect (S (i)) Qubit) (LVect j Qubit))
 applyControlledUSplitSim' q ust (usn)= 
-  let (un) # (lvLeft # lvRight)= runUStateT ((IdGate {n = n})) ust in
-  let unew = UnitaryNoPrf.compose (controlled un) usn in
-    (unew) # ((q :: lvLeft) # lvRight)
+  let (q, k) = qubitToNatPair q in
+    let un # (lvLeft # lvRight) = runUStateT (IdGate {n = n}) ust in
+      let lvMid # vect = distributeDupedLVectVect (lvLeft ++ lvRight) in
+        let v = newVectOrderN (S n) vect in
+           let vn = findInLin k v in
+            case decInj (S n) (k :: vn) of 
+              Yes prfYes => let unew = (UnitaryNoPrf.apply (controlled un) usn (k :: vn)) in 
+                              let lvOutL # lvOutR = splitLVinto i j lvMid in 
+                                unew # (q :: lvOutL # lvOutR)
+              No prfNo => let applicableSn = toVectN $ makeNeutralVect (S n) in --SEE UNITARYSIMULATED FOR MORE DETAIL
+                            let un = (UnitaryNoPrf.apply (controlled un) usn (applicableSn)) in 
+                              let lvOutL # lvOutR = splitLVinto i j lvMid in 
+                                un # (q :: lvOutL # lvOutR)
 
 ||| Implementation of abstract controlled split application     
 applyControlledSimulatedSplit: {i:Nat} -> {j:Nat} -> {n : Nat} -> (1 _ : Qubit) -> (1_ : UStateT (UnitaryNoPrf n) (UnitaryNoPrf n) (LPair (LVect i Qubit) (LVect j Qubit)))
